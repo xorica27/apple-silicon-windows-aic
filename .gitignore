@@ -1,0 +1,14 @@
+# Upstream sources are cloned, not vendored.
+upstream/
+
+# macOS
+.DS_Store
+
+# Local build and test artifacts
+build/
+*.img
+*.qcow2
+*.iso
+*.vhd
+*.vhdx
+*.log

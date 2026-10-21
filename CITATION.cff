@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+message: "If you use this work, please cite it using the metadata below."
+title: "Hypervisor-Free Windows on Apple Silicon: The AIC Problem"
+abstract: >-
+  A research concept and reproducibility plan for investigating whether Windows
+  11 ARM64 can boot on Apple Silicon without an EL2 hypervisor shim by teaching
+  the Windows HAL to drive Apple's AIC interrupt controller. Includes a prior-art
+  survey, an upstream code survey, a staged roadmap, and a QEMU-based validation
+  strategy.
+authors:
+  - name: "xorica27"
+date-released: "2026-10-21"
+license: MIT
+keywords:
+  - Apple Silicon
+  - Windows on ARM
+  - AIC
+  - interrupt controller
+  - QEMU
+  - reverse engineering
+  - hypervisor
+  - UEFI
+  - ACPI
+  - Asahi Linux
