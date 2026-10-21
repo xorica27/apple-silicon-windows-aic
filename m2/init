@@ -1,0 +1,28 @@
+#!/bin/sh
+
+mount -t proc proc /proc
+mount -t sysfs sys /sys
+mount -t devtmpfs dev /dev 2>/dev/null
+
+echo "M2: USERSPACE REACHED"
+uname -a
+
+expected=$(sed -n 's/.*m2\.expected_cpus=\([0-9][0-9]*\).*/\1/p' /proc/cmdline)
+online=$(cat /sys/devices/system/cpu/online)
+count=$(grep -c '^processor' /proc/cpuinfo)
+echo "M2: CPUS online=$online count=$count expected=${expected:-unset}"
+
+echo "M2: INTERRUPTS"
+cat /proc/interrupts
+
+echo "M2: AIC/PL011/TIMER"
+dmesg | grep -i -E "aic|apple|pl011|timer" | head -50
+
+if [ -n "$expected" ] && [ "$count" != "$expected" ]; then
+    echo "M2: FAIL expected $expected CPUs, saw $count"
+    poweroff -f
+    exit 1
+fi
+
+echo "M2: PASS"
+poweroff -f

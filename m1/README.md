@@ -36,8 +36,8 @@ reads, 64-bit MMIO, and reset.
 - **Payload:** CPU1 secondary entry, per-CPU stacks, CPU0→CPU1 IPI test.
 
 The QEMU changes are in the cumulative
-[`0001-m0-observability.patch`](../patches/0001-m0-observability.patch) (M0 plus
-M1). Apply it with `scripts/apply-m0-patches.sh`.
+[`0001-m0-observability.patch`](../patches/0001-m0-observability.patch) (M0, M1,
+and M2). Apply it with `scripts/apply-m0-patches.sh`.
 
 ## Build and run
 

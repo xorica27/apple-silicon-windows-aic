@@ -1,0 +1,43 @@
+# M2 Linux AIC trace sample (filtered)
+# Full trace: /tmp/m2-aic.trace (not committed; 1.2 MB, 34,511 lines)
+# AIC v1, four CPUs, Linux 6.12 with compatible = "apple,aic" (MMIO IPIs).
+
+# CPU1 init: WHOAMI=1, then ack SELF|OTHER, mask SELF, unmask OTHER
+apple_aic_read offset=0x2000 size=4 value=0x1
+apple_aic_write offset=0x200c size=4 value=0x80000001
+apple_aic_ipi_ack cpu=1
+apple_aic_write offset=0x2024 size=4 value=0x80000000
+apple_aic_write offset=0x2028 size=4 value=0x1
+
+# CPU0 sends a self-IPI: AIC_IPI_SEND (0x2008), BIT(0)
+apple_aic_write offset=0x2008 size=4 value=0x1
+apple_aic_ipi_send cpu=0
+apple_aic_ipi_raise cpu=0
+apple_aic_ipi_event cpu=0
+
+# CPU0 takes the event: 0x40001 = type 4 (IPI), num 1 (OTHER)
+apple_aic_read offset=0x2004 size=4 value=0x40001
+apple_aic_write offset=0x200c size=4 value=0x1
+apple_aic_ipi_ack cpu=0
+apple_aic_write offset=0x2028 size=4 value=0x1
+apple_aic_eoi irq=0 remaining=0
+
+# CPU0 sends to CPU1: AIC_IPI_SEND, BIT(1)
+apple_aic_write offset=0x2008 size=4 value=0x2
+apple_aic_ipi_send cpu=1
+apple_aic_ipi_raise cpu=1
+apple_aic_ipi_event cpu=1
+
+# CPU1 takes and acks the IPI
+apple_aic_read offset=0x2004 size=4 value=0x40001
+apple_aic_write offset=0x200c size=4 value=0x1
+apple_aic_ipi_ack cpu=1
+apple_aic_write offset=0x2028 size=4 value=0x1
+apple_aic_eoi irq=0 remaining=0
+
+# Totals for the 4-CPU boot:
+# apple_aic_ipi_send   987
+# apple_aic_ipi_event  987
+# apple_aic_ipi_raise  987
+# apple_aic_ipi_ack    991
+# apple_aic_raise        0 (UART idle; timer is a direct FIQ)

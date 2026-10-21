@@ -1,6 +1,6 @@
 # Bare-Metal Windows 11 on Apple Silicon: The AIC Gate
 
-**Status:** Research concept, pre-implementation  
+**Status:** Research concept; M0–M2 complete on QEMU, hardware execution open
 **Date:** 2026-10-21  
 **Author:** xorica27  
 **License:** MIT for original content; upstream components retain their own licenses.
@@ -339,9 +339,11 @@ required," not as a bare-metal success.
 | M5 | Patched Windows on model | Functional desktop on the AIC model, with no EL2 shim |
 | M6 | Hardware validation | Functional desktop on a sacrificial Apple Silicon Mac (M1 Pro primary); no-EL2 protocol passes |
 
-M0 is concluded on the QEMU bench; M0b is open; M1's model work is complete on
-QEMU. The Linux AIC driver probe moves to M2. Detailed dependencies and decision
-points are in the [roadmap](roadmap.md).
+M0 and M2 are concluded on the QEMU bench; M0b is open; M1's model work is
+complete on QEMU. Linux 6.12 boots to userspace on `apple-aic-virt` with 4/4
+CPUs, the virtual timer via FIQ, and AICv1 MMIO IPIs. AICv2 Linux boot, RTC,
+`fw_cfg`, and virtio remain for M3/M4. Detailed dependencies and decision points
+are in the [roadmap](roadmap.md).
 
 ## 8. Evaluation criteria
 

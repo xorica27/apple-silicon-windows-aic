@@ -11,9 +11,11 @@ bare-metal payloads that take UART IRQs through AIC and a timer via AIC (v1) or
 FIQ (v2). M0b (M1 Pro hardware execution) is open: the payload is cross-compiled
 but has not been booted. M1's model portion is complete: multi-CPU, targeting,
 AICv1 MMIO IPIs, mask/SW/hardware-state/info registers, 64-bit MMIO, and reset;
-qtest 15/15; the v1 SMP/IPI payload passes. The Linux AIC driver probe moves to
-M2. See [`m0/README.md`](../m0/README.md),
-[`m1/README.md`](../m1/README.md), and
+qtest 15/15; the v1 SMP/IPI payload passes. M2 is concluded: Linux 6.12 boots to
+userspace on `apple-aic-virt` with 4/4 CPUs online, the virtual timer via FIQ,
+and AICv1 MMIO IPIs working. The AICv2 Linux boot and the RTC/`fw_cfg`/virtio
+devices are deferred to M3/M4. See [`m0/README.md`](../m0/README.md),
+[`m1/README.md`](../m1/README.md), [`m2/README.md`](../m2/README.md), and
 [`notes/2026-10-21-m1-pro-live-hardware.md`](../notes/2026-10-21-m1-pro-live-hardware.md).
 
 ## Goal and definition of done
@@ -125,7 +127,7 @@ AICv1 MMIO IPIs, mask/SW/hw-state/info registers, 64-bit MMIO, and reset are
 implemented; qtest is 15/15; the v1 SMP/IPI payload passes (3/3). AICv2 fast
 IPIs use system registers and are not modeled. The Linux probe is M2.
 
-## M2 — General-purpose machine
+## M2 — General-purpose machine (concluded)
 
 **Goal:** an `apple-aic-virt` machine that boots Linux.
 
@@ -143,6 +145,16 @@ Exit criteria:
 
 Dependencies: M1.  
 Main risk: QEMU `virt` assumptions leaking through ACPI or GIC helpers.
+
+**Status (2026-10-21):** concluded on the exit criterion. `apple-aic-virt` has
+RAM, up to 4 CPUs, a PL011, a spin-table secondary boot path, and an AICv1 with
+256 IRQs. Linux 6.12 reaches userspace with `console=ttyAMA0`, all 4 CPUs online,
+the virtual timer via the CPU FIQ, and AICv1 MMIO IPIs working (3/3 runs). The
+RTC, `fw_cfg`, and virtio devices were not added; they are deferred to the
+storage and validation work (M3/M4), along with an AICv2 Linux boot. Two bench
+bugs were fixed: the timer must be the virtual timer PPI at EL1, and the
+spin-table mailbox/stub must live outside the kernel image. See
+[`m2/README.md`](../m2/README.md).
 
 ## M3 — Linux validation
 

@@ -1,0 +1,376 @@
+[    0.000000] Booting Linux on physical CPU 0x0000000000 [0x000f0510]
+[    0.000000] Linux version 6.12.0 (charlie@MacBook-Pro.local) (aarch64-elf-gcc (GCC) 16.2.0, GNU ld (GNU Binutils) 2.47.20260726) #1 SMP PREEMPT Wed Oct 21 11:39:01 +08 2026
+[    0.000000] KASLR enabled
+[    0.000000] Machine model: apple,aic-virt
+[    0.000000] earlycon: pl11 at MMIO 0x0000000020010000 (options '')
+[    0.000000] printk: legacy bootconsole [pl11] enabled
+[    0.000000] efi: UEFI not found.
+[    0.000000] NUMA: Faking a node at [mem 0x0000000040000000-0x000000004fffffff]
+[    0.000000] NODE_DATA(0) allocated [mem 0x4ff93440-0x4ff95a7f]
+[    0.000000] Zone ranges:
+[    0.000000]   DMA      [mem 0x0000000040000000-0x000000004fffffff]
+[    0.000000]   DMA32    empty
+[    0.000000]   Normal   empty
+[    0.000000] Movable zone start for each node
+[    0.000000] Early memory node ranges
+[    0.000000]   node   0: [mem 0x0000000040000000-0x000000004fffffff]
+[    0.000000] Initmem setup node 0 [mem 0x0000000040000000-0x000000004fffffff]
+[    0.000000] cma: Reserved 32 MiB at 0x000000004da00000 on node -1
+[    0.000000] percpu: Embedded 21 pages/cpu s56024 r0 d29992 u86016
+[    0.000000] Detected PIPT I-cache on CPU0
+[    0.000000] CPU features: detected: Address authentication (IMP DEF algorithm)
+[    0.000000] CPU features: detected: Stage-1 Permission Indirection Extension (S1PIE)
+[    0.000000] CPU features: detected: 52-bit Virtual Addressing (LPA2)
+[    0.000000] CPU features: detected: Spectre-v4
+[    0.000000] alternatives: applying boot alternatives
+[    0.000000] Kernel command line: console=ttyAMA0 earlycon=pl011,0x20010000 rdinit=/init panic=1 m2.expected_cpus=4
+[    0.000000] random: crng init done
+[    0.000000] Dentry cache hash table entries: 32768 (order: 6, 262144 bytes, linear)
+[    0.000000] Inode-cache hash table entries: 16384 (order: 5, 131072 bytes, linear)
+[    0.000000] Fallback order for Node 0: 0
+[    0.000000] Built 1 zonelists, mobility grouping on.  Total pages: 65536
+[    0.000000] Policy zone: DMA
+[    0.000000] mem auto-init: stack:all(zero), heap alloc:off, heap free:off
+[    0.000000] software IO TLB: SWIOTLB bounce buffer size adjusted to 0MB
+[    0.000000] software IO TLB: area num 4.
+[    0.000000] software IO TLB: SWIOTLB bounce buffer size roundup to 1MB
+[    0.000000] software IO TLB: mapped [mem 0x000000004d8c0000-0x000000004d9c0000] (1MB)
+[    0.000000] SLUB: HWalign=64, Order=0-3, MinObjects=0, CPUs=4, Nodes=1
+[    0.000000] rcu: Preemptible hierarchical RCU implementation.
+[    0.000000] rcu: 	RCU event tracing is enabled.
+[    0.000000] rcu: 	RCU restricting CPUs from NR_CPUS=512 to nr_cpu_ids=4.
+[    0.000000] 	Trampoline variant of Tasks RCU enabled.
+[    0.000000] 	Tracing variant of Tasks RCU enabled.
+[    0.000000] rcu: RCU calculated value of scheduler-enlistment delay is 25 jiffies.
+[    0.000000] rcu: Adjusting geometry for rcu_fanout_leaf=16, nr_cpu_ids=4
+[    0.000000] RCU Tasks: Setting shift to 2 and lim to 1 rcu_task_cb_adjust=1 rcu_task_cpu_ids=4.
+[    0.000000] RCU Tasks Trace: Setting shift to 2 and lim to 1 rcu_task_cb_adjust=1 rcu_task_cpu_ids=4.
+[    0.000000] NR_IRQS: 64, nr_irqs: 64, preallocated irqs: 0
+[    0.000000] Root IRQ handler: aic_handle_irq
+[    0.000000] Root FIQ handler: aic_handle_fiq
+[    0.000000] irq_apple_aic: Kernel running in EL1, mapping interrupts
+[    0.000000] irq_apple_aic: Initialized with 256/1024 IRQs * 1/1 die(s), 7 FIQs, 32 vIPIs
+[    0.000000] rcu: srcu_init: Setting srcu_struct sizes based on contention.
+[    0.000000] arch_timer: cp15 timer(s) running at 24.00MHz (virt).
+[    0.000000] clocksource: arch_sys_counter: mask: 0xffffffffffffff max_cycles: 0x588fe9dc0, max_idle_ns: 440795202592 ns
+[    0.000074] sched_clock: 56 bits at 24MHz, resolution 41ns, wraps every 4398046511097ns
+[    0.017667] Console: colour dummy device 80x25
+[    0.024481] Calibrating delay loop (skipped), value calculated using timer frequency.. 48.00 BogoMIPS (lpj=96000)
+[    0.025465] pid_max: default: 32768 minimum: 301
+[    0.027172] LSM: initializing lsm=capability
+[    0.032464] Mount-cache hash table entries: 512 (order: 0, 4096 bytes, linear)
+[    0.032895] Mountpoint-cache hash table entries: 512 (order: 0, 4096 bytes, linear)
+[    0.070321] cacheinfo: Unable to detect cache hierarchy for CPU 0
+[    0.087798] rcu: Hierarchical SRCU implementation.
+[    0.088006] rcu: 	Max phase no-delay instances is 1000.
+[    0.090667] Timer migration: 1 hierarchy levels; 8 children per group; 1 crossnode level
+[    0.094723] EFI services will not be available.
+[    0.097305] smp: Bringing up secondary CPUs ...
+[    0.108836] Detected PIPT I-cache on CPU1
+[    0.111418] CPU1: Booted secondary processor 0x0000000001 [0x000f0510]
+[    0.130599] Detected PIPT I-cache on CPU2
+[    0.130946] CPU2: Booted secondary processor 0x0000000002 [0x000f0510]
+[    0.141384] Detected PIPT I-cache on CPU3
+[    0.141727] CPU3: Booted secondary processor 0x0000000003 [0x000f0510]
+[    0.142407] smp: Brought up 1 node, 4 CPUs
+[    0.143525] SMP: Total of 4 processors activated.
+[    0.143768] CPU: All CPU(s) started at EL1
+[    0.143980] CPU features: detected: Branch Target Identification
+[    0.144212] CPU features: detected: 32-bit EL0 Support
+[    0.144394] CPU features: detected: ARMv8.4 Translation Table Level
+[    0.144575] CPU features: detected: Instruction cache invalidation not required for I/D coherence
+[    0.144827] CPU features: detected: Data cache clean to the PoU not required for I/D coherence
+[    0.145075] CPU features: detected: Common not Private translations
+[    0.145243] CPU features: detected: CRC32 instructions
+[    0.145677] CPU features: detected: Data independent timing control (DIT)
+[    0.145858] CPU features: detected: E0PD
+[    0.145986] CPU features: detected: Enhanced Counter Virtualization
+[    0.146175] CPU features: detected: Enhanced Counter Virtualization (CNTPOFF)
+[    0.146343] CPU features: detected: Enhanced Privileged Access Never
+[    0.146506] CPU features: detected: Enhanced Virtualization Traps
+[    0.146771] CPU features: detected: FPMR
+[    0.146876] CPU features: detected: Fine Grained Traps
+[    0.147055] CPU features: detected: Generic authentication (IMP DEF algorithm)
+[    0.147251] CPU features: detected: RCpc load-acquire (LDAPR)
+[    0.147418] CPU features: detected: 52-bit Virtual Addressing for KVM (LPA2)
+[    0.147585] CPU features: detected: LSE atomic instructions
+[    0.147730] CPU features: detected: Memory Copy and Memory Set instructions
+[    0.147900] CPU features: detected: Privileged Access Never
+[    0.148088] CPU features: detected: RAS Extension Support
+[    0.148294] CPU features: detected: Random Number Generator
+[    0.148475] CPU features: detected: Speculation barrier (SB)
+[    0.148655] CPU features: detected: Stage-2 Force Write-Back
+[    0.148822] CPU features: detected: Trap EL0 IMPLEMENTATION DEFINED functionality
+[    0.149071] CPU features: detected: TLB range maintenance instructions
+[    0.149266] CPU features: detected: WFx with timeout
+[    0.149492] CPU features: detected: Speculative Store Bypassing Safe (SSBS)
+[    0.149720] CPU features: detected: Scalable Vector Extension
+[    0.158501] alternatives: applying system-wide alternatives
+[    0.181684] CPU features: detected: Hardware dirty bit management on CPU0-3
+[    0.182906] SVE: maximum available vector length 256 bytes per vector
+[    0.183417] SVE: default vector length 64 bytes per vector
+[    0.197222] Memory: 146772K/262144K available (34816K kernel code, 7020K rwdata, 22964K rodata, 3584K init, 818K bss, 80648K reserved, 32768K cma-reserved)
+[    0.222820] devtmpfs: initialized
+[    0.244670] clocksource: jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 7645041785100000 ns
+[    0.245771] futex hash table entries: 1024 (order: 4, 65536 bytes, linear)
+[    0.248997] 2G module region forced by RANDOMIZE_MODULE_REGION_FULL
+[    0.249276] 0 pages in range for non-PLT usage
+[    0.249326] 506928 pages in range for PLT usage
+[    0.252776] pinctrl core: initialized pinctrl subsystem
+[    0.261742] DMI not present or invalid.
+[    0.301708] NET: Registered PF_NETLINK/PF_ROUTE protocol family
+[    0.318112] DMA: preallocated 128 KiB GFP_KERNEL pool for atomic allocations
+[    0.321616] DMA: preallocated 128 KiB GFP_KERNEL|GFP_DMA pool for atomic allocations
+[    0.323650] DMA: preallocated 128 KiB GFP_KERNEL|GFP_DMA32 pool for atomic allocations
+[    0.325188] audit: initializing netlink subsys (disabled)
+[    0.328626] audit: type=2000 audit(0.232:1): state=initialized audit_enabled=0 res=1
+[    0.336924] thermal_sys: Registered thermal governor 'step_wise'
+[    0.337007] thermal_sys: Registered thermal governor 'power_allocator'
+[    0.338614] cpuidle: using governor menu
+[    0.342193] NET: Registered PF_QIPCRTR protocol family
+[    0.346607] hw-breakpoint: found 6 breakpoint and 4 watchpoint registers.
+[    0.350210] ASID allocator initialised with 65536 entries
+[    0.363237] Serial: AMBA PL011 UART driver
+[    0.412889] 20010000.serial: ttyAMA0 at MMIO 0x20010000 (irq = 35, base_baud = 0) is a PL011 rev1
+[    0.425602] printk: legacy console [ttyAMA0] enabled
+[    0.425602] printk: legacy console [ttyAMA0] enabled
+[    0.426503] printk: legacy bootconsole [pl11] disabled
+[    0.426503] printk: legacy bootconsole [pl11] disabled
+[    0.478106] HugeTLB: registered 1.00 GiB page size, pre-allocated 0 pages
+[    0.478581] HugeTLB: 0 KiB vmemmap can be freed for a 1.00 GiB page
+[    0.478808] HugeTLB: registered 32.0 MiB page size, pre-allocated 0 pages
+[    0.479162] HugeTLB: 0 KiB vmemmap can be freed for a 32.0 MiB page
+[    0.479525] HugeTLB: registered 2.00 MiB page size, pre-allocated 0 pages
+[    0.479871] HugeTLB: 0 KiB vmemmap can be freed for a 2.00 MiB page
+[    0.480092] HugeTLB: registered 64.0 KiB page size, pre-allocated 0 pages
+[    0.480253] HugeTLB: 0 KiB vmemmap can be freed for a 64.0 KiB page
+[    0.574885] raid6: neonx8   gen()  3754 MB/s
+[    0.661006] raid6: neonx4   gen()  2685 MB/s
+[    0.748124] raid6: neonx2   gen()  3021 MB/s
+[    0.835372] raid6: neonx1   gen()  1852 MB/s
+[    0.922963] raid6: int64x8  gen()  2403 MB/s
+[    1.008359] raid6: int64x4  gen()  1497 MB/s
+[    1.092971] raid6: int64x2  gen()  3071 MB/s
+[    1.180498] raid6: int64x1  gen()  2482 MB/s
+[    1.180774] raid6: using algorithm neonx8 gen() 3754 MB/s
+[    1.265742] raid6: .... xor() 1639 MB/s, rmw enabled
+[    1.266093] raid6: using neon recovery algorithm
+[    1.269226] ACPI: Interpreter disabled.
+[    1.278477] iommu: Default domain type: Translated
+[    1.278708] iommu: DMA domain TLB invalidation policy: strict mode
+[    1.282160] SCSI subsystem initialized
+[    1.287445] usbcore: registered new interface driver usbfs
+[    1.288011] usbcore: registered new interface driver hub
+[    1.288391] usbcore: registered new device driver usb
+[    1.290693] mc: Linux media interface: v0.10
+[    1.291086] videodev: Linux video capture interface: v2.00
+[    1.292793] pps_core: LinuxPPS API ver. 1 registered
+[    1.293011] pps_core: Software ver. 5.3.6 - Copyright 2005-2007 Rodolfo Giometti <giometti@linux.it>
+[    1.293373] PTP clock support registered
+[    1.296029] EDAC MC: Ver: 3.0.0
+[    1.298164] scmi_core: SCMI protocol bus registered
+[    1.301818] FPGA manager framework
+[    1.303187] Advanced Linux Sound Architecture Driver Initialized.
+[    1.314751] Bluetooth: Core ver 2.22
+[    1.315534] NET: Registered PF_BLUETOOTH protocol family
+[    1.315750] Bluetooth: HCI device and connection manager initialized
+[    1.316075] Bluetooth: HCI socket layer initialized
+[    1.316426] Bluetooth: L2CAP socket layer initialized
+[    1.316778] Bluetooth: SCO socket layer initialized
+[    1.319663] nfc: nfc_init: NFC Core ver 0.1
+[    1.320367] NET: Registered PF_NFC protocol family
+[    1.321882] vgaarb: loaded
+[    1.328412] clocksource: Switched to clocksource arch_sys_counter
+[    1.330549] VFS: Disk quotas dquot_6.6.0
+[    1.330855] VFS: Dquot-cache hash table entries: 512 (order 0, 4096 bytes)
+[    1.335695] pnp: PnP ACPI: disabled
+[    1.379248] NET: Registered PF_INET protocol family
+[    1.380551] IP idents hash table entries: 4096 (order: 3, 32768 bytes, linear)
+[    1.385691] tcp_listen_portaddr_hash hash table entries: 256 (order: 0, 4096 bytes, linear)
+[    1.386133] Table-perturb hash table entries: 65536 (order: 6, 262144 bytes, linear)
+[    1.386433] TCP established hash table entries: 2048 (order: 2, 16384 bytes, linear)
+[    1.386884] TCP bind hash table entries: 2048 (order: 4, 65536 bytes, linear)
+[    1.387154] TCP: Hash tables configured (established 2048 bind 2048)
+[    1.388368] UDP hash table entries: 256 (order: 1, 8192 bytes, linear)
+[    1.388715] UDP-Lite hash table entries: 256 (order: 1, 8192 bytes, linear)
+[    1.390118] NET: Registered PF_UNIX/PF_LOCAL protocol family
+[    1.394590] RPC: Registered named UNIX socket transport module.
+[    1.394829] RPC: Registered udp transport module.
+[    1.394948] RPC: Registered tcp transport module.
+[    1.395060] RPC: Registered tcp-with-tls transport module.
+[    1.395184] RPC: Registered tcp NFSv4.1 backchannel transport module.
+[    1.399398] PCI: CLS 0 bytes, default 64
+[    1.403411] Unpacking initramfs...
+[    1.411097] Initialise system trusted keyrings
+[    1.413349] workingset: timestamp_bits=42 max_order=16 bucket_order=0
+[    1.415577] squashfs: version 4.0 (2009/01/31) Phillip Lougher
+[    1.418508] NFS: Registering the id_resolver key type
+[    1.419617] Key type id_resolver registered
+[    1.420056] Key type id_legacy registered
+[    1.420662] nfs4filelayout_init: NFSv4 File Layout Driver Registering...
+[    1.421203] nfs4flexfilelayout_init: NFSv4 Flexfile Layout Driver Registering...
+[    1.422593] fuse: init (API version 7.41)
+[    1.424104] 9p: Installing v9fs 9p2000 file system support
+[    1.491913] NET: Registered PF_ALG protocol family
+[    1.492339] xor: measuring software checksum speed
+[    1.493611]    8regs           :  3311 MB/sec
+[    1.494553]    32regs          :  4446 MB/sec
+[    1.496950]    arm64_neon      :  1545 MB/sec
+[    1.497197] xor: using function: 32regs (4446 MB/sec)
+[    1.497380] Key type asymmetric registered
+[    1.497588] Asymmetric key parser 'x509' registered
+[    1.498089] Block layer SCSI generic (bsg) driver version 0.4 loaded (major 239)
+[    1.498457] io scheduler mq-deadline registered
+[    1.498635] io scheduler kyber registered
+[    1.499075] io scheduler bfq registered
+[    1.531928] ledtrig-cpu: registered to indicate activity on CPUs
+[    1.544406] IPMI message handler: version 39.2
+[    1.544904] ipmi device interface
+[    1.547512] ipmi_si: IPMI System Interface driver
+[    1.549208] ipmi_si: Unable to find any System Interface(s)
+[    1.629094] Freeing initrd memory: 3848K
+[    1.632268] Serial: 8250/16550 driver, 4 ports, IRQ sharing enabled
+[    1.648504] msm_serial: driver initialized
+[    1.649563] SuperH (H)SCI(F) driver initialized
+[    1.649915] STM32 USART driver initialized
+[    1.711081] loop: module loaded
+[    1.770853] megasas: 07.727.03.00-rc1
+[    1.771382] mpt3sas version 48.100.00.00 loaded
+[    1.808343] tun: Universal TUN/TAP device driver, 1.6
+[    1.810477] CAN device driver interface
+[    1.816119] thunder_xcv, ver 1.0
+[    1.816712] thunder_bgx, ver 1.0
+[    1.816917] nicpf, ver 1.0
+[    1.820148] hns3: Hisilicon Ethernet Network Driver for Hip08 Family - version
+[    1.820374] hns3: Copyright (c) 2017 Huawei Corporation.
+[    1.821212] hclge is initializing
+[    1.821511] e1000: Intel(R) PRO/1000 Network Driver
+[    1.821641] e1000: Copyright (c) 1999-2006 Intel Corporation.
+[    1.821892] e1000e: Intel(R) PRO/1000 Network Driver
+[    1.822015] e1000e: Copyright(c) 1999 - 2015 Intel Corporation.
+[    1.822236] igb: Intel(R) Gigabit Ethernet Network Driver
+[    1.822392] igb: Copyright (c) 2007-2014 Intel Corporation.
+[    1.822687] igbvf: Intel(R) Gigabit Virtual Function Network Driver
+[    1.822853] igbvf: Copyright (c) 2009 - 2012 Intel Corporation.
+[    1.823865] sky2: driver version 1.30
+[    1.835181] Intel(R) Wireless WiFi driver for Linux
+[    1.836317] usbcore: registered new interface driver RSI-USB WLAN
+[    1.837552] pegasus: Pegasus/Pegasus II USB Ethernet driver
+[    1.837838] usbcore: registered new interface driver pegasus
+[    1.838069] usbcore: registered new interface driver rtl8150
+[    1.838281] usbcore: registered new device driver r8152-cfgselector
+[    1.838488] usbcore: registered new interface driver r8152
+[    1.838679] usbcore: registered new interface driver lan78xx
+[    1.838872] usbcore: registered new interface driver asix
+[    1.839060] usbcore: registered new interface driver ax88179_178a
+[    1.839282] usbcore: registered new interface driver cdc_ether
+[    1.839630] usbcore: registered new interface driver dm9601
+[    1.839858] usbcore: registered new interface driver CoreChips
+[    1.840063] usbcore: registered new interface driver smsc75xx
+[    1.840308] usbcore: registered new interface driver smsc95xx
+[    1.840551] usbcore: registered new interface driver net1080
+[    1.840935] usbcore: registered new interface driver plusb
+[    1.841202] usbcore: registered new interface driver cdc_subset
+[    1.841442] usbcore: registered new interface driver zaurus
+[    1.841644] usbcore: registered new interface driver MOSCHIP usb-ethernet driver
+[    1.841954] usbcore: registered new interface driver cdc_ncm
+[    1.842212] usbcore: registered new interface driver r8153_ecm
+[    1.844322] VFIO - User Level meta-driver version: 0.3
+[    1.854780] usbcore: registered new interface driver cdc_acm
+[    1.855019] cdc_acm: USB Abstract Control Model driver for USB modems and ISDN adapters
+[    1.855444] usbcore: registered new interface driver usb-storage
+[    1.856036] usbcore: registered new interface driver cp210x
+[    1.856662] usbserial: USB Serial support registered for cp210x
+[    1.857057] usbcore: registered new interface driver ftdi_sio
+[    1.857275] usbserial: USB Serial support registered for FTDI USB Serial Device
+[    1.857857] usbcore: registered new interface driver option
+[    1.858094] usbserial: USB Serial support registered for GSM modem (1-port)
+[    1.859546] usbcore: registered new device driver onboard-usb-dev
+[    1.865853] UDC core: g_mass_storage: couldn't find an available UDC
+[    1.883121] i2c_dev: i2c /dev entries driver
+[    1.903508] usbcore: registered new interface driver uvcvideo
+[    1.927446] device-mapper: ioctl: 4.48.0-ioctl (2023-03-01) initialised: dm-devel@lists.linux.dev
+[    1.928209] Bluetooth: HCI UART driver ver 2.3
+[    1.928459] Bluetooth: HCI UART protocol H4 registered
+[    1.929144] Bluetooth: HCI UART protocol LL registered
+[    1.930017] Bluetooth: HCI UART protocol Broadcom registered
+[    1.930410] Bluetooth: HCI UART protocol QCA registered
+[    1.930744] Bluetooth: HCI UART protocol Marvell registered
+[    1.931051] usbcore: registered new interface driver btusb
+[    1.939624] sdhci: Secure Digital Host Controller Interface driver
+[    1.939869] sdhci: Copyright(c) Pierre Ossman
+[    1.942075] Synopsys Designware Multimedia Card Interface Driver
+[    1.945710] sdhci-pltfm: SDHCI platform and OF driver helper
+[    1.970178] usbcore: registered new interface driver usbhid
+[    1.970414] usbhid: USB HID core driver
+[    1.994284] SPI driver st-magn-spi has no spi_device_id for st,lis3mdl-magn
+[    1.994738] SPI driver st-magn-spi has no spi_device_id for st,lsm303agr-magn
+[    1.995249] SPI driver st-magn-spi has no spi_device_id for st,lsm9ds1-magn
+[    1.995540] SPI driver st-magn-spi has no spi_device_id for st,lsm303c-magn
+[    2.006177]  cs_system_cfg: CoreSight Configuration manager initialised
+[    2.017125] gnss: GNSS driver registered with major 498
+[    2.089340] GACT probability NOT on
+[    2.089944] Mirror/redirect action on
+[    2.092891] IPVS: Registered protocols ()
+[    2.093317] IPVS: Connection hash table configured (size=4096, memory=32Kbytes)
+[    2.095034] IPVS: ipvs loaded.
+[    2.097410] NET: Registered PF_INET6 protocol family
+[    2.106069] Segment Routing with IPv6
+[    2.106415] In-situ OAM (IOAM) with IPv6
+[    2.107444] sit: IPv6, IPv4 and MPLS over IPv4 tunneling driver
+[    2.110807] NET: Registered PF_PACKET protocol family
+[    2.111586] Bridge firewalling registered
+[    2.112951] can: controller area network core
+[    2.113570] NET: Registered PF_CAN protocol family
+[    2.113827] can: raw protocol
+[    2.114165] can: broadcast manager protocol
+[    2.114577] can: netlink gateway - max_hops=1
+[    2.114943] Bluetooth: HIDP (Human Interface Emulation) ver 1.2
+[    2.115130] Bluetooth: HIDP socket layer initialized
+[    2.115942] 8021q: 802.1Q VLAN Support v1.8
+[    2.117149] 9pnet: Installing 9P2000 support
+[    2.117621] Key type dns_resolver registered
+[    2.185789] registered taskstats version 1
+[    2.187514] Loading compiled-in X.509 certificates
+[    2.217694] Demotion targets for Node 0: null
+[    2.233084] Btrfs loaded, zoned=no, fsverity=no
+[    2.240636] cfg80211: Loading compiled-in X.509 certificates for regulatory database
+[    2.251935] Loaded X.509 cert 'sforshee: 00b28ddf47aef9cea7'
+[    2.252934] Loaded X.509 cert 'wens: 61c038651aabdcf94bd0ac7ff06c7248db18c600'
+[    2.255611] platform regulatory.0: Direct firmware load for regulatory.db failed with error -2
+[    2.256498] clk: Disabling unused clocks
+[    2.256932] PM: genpd: Disabling unused power domains
+[    2.257536] cfg80211: failed to load regulatory.db
+[    2.257845] ALSA device list:
+[    2.258061]   #0: Loopback 1
+[    2.382450] Freeing unused kernel memory: 3584K
+[    2.383715] Run /init as init process
+M2: USERSPACE REACHED
+Linux (none) 6.12.0 #1 SMP PREEMPT Wed Oct 21 11:39:01 +08 2026 aarch64 Linux
+M2: CPUS online=0-3 count=4 expected=4
+M2: INTERRUPTS
+           CPU0       CPU1       CPU2       CPU3
+ 34:        450        317        268        388   AIC-FIQ   1 Level     arch_timer
+ 35:          0          0          0          0       AIC 65636 Level     uart-pl011
+IPI0:        14         21          4         38       Rescheduling interrupts
+IPI1:       280         83        306        148       Function call interrupts
+IPI2:         0          0          0          0       CPU stop interrupts
+IPI3:         0          0          0          0       CPU stop NMIs
+IPI4:         0          0          0          0       Timer broadcast interrupts
+IPI5:         0          0          0          0       IRQ work interrupts
+IPI6:         0          0          0          0       CPU backtrace interrupts
+IPI7:         0          0          0          0       KGDB roundup interrupts
+Err:          0
+M2: AIC/PL011/TIMER
+[    0.000000] Machine model: apple,aic-virt
+[    0.000000] Kernel command line: console=ttyAMA0 earlycon=pl011,0x20010000 rdinit=/init panic=1 m2.expected_cpus=4
+[    0.000000] Root IRQ handler: aic_handle_irq
+[    0.000000] Root FIQ handler: aic_handle_fiq
+[    0.000000] irq_apple_aic: Kernel running in EL1, mapping interrupts
+[    0.000000] irq_apple_aic: Initialized with 256/1024 IRQs * 1/1 die(s), 7 FIQs, 32 vIPIs
+[    0.000000] arch_timer: cp15 timer(s) running at 24.00MHz (virt).
+[    0.024481] Calibrating delay loop (skipped), value calculated using timer frequency.. 48.00 BogoMIPS (lpj=96000)
+[    0.090667] Timer migration: 1 hierarchy levels; 8 children per group; 1 crossnode level
+[    0.363237] Serial: AMBA PL011 UART driver
+[    0.412889] 20010000.serial: ttyAMA0 at MMIO 0x20010000 (irq = 35, base_baud = 0) is a PL011 rev1
+M2: PASS

@@ -69,8 +69,10 @@ Milestone 0 (QEMU AIC observability bench) is concluded for AIC v1 and v2.
 Milestone 0b (M1 Pro hardware execution) is open: the hardware payload is
 cross-compiled but has not been booted. Milestone 1's model portion is complete
 on QEMU: multi-CPU, targeting, AICv1 MMIO IPIs, mask/SW/hardware-state
-registers, 64-bit MMIO, and reset; qtest 15/15; the SMP/IPI payload passes. The
-Linux AIC driver probe moves to M2.
+registers, 64-bit MMIO, and reset; qtest 15/15; the SMP/IPI payload passes.
+Milestone 2 is concluded: Linux 6.12 boots to userspace on `apple-aic-virt` with
+all 4 CPUs online, the virtual timer via the CPU FIQ, and AICv1 MMIO IPIs
+working. RTC, `fw_cfg`, virtio, and the AICv2 Linux boot remain for M3/M4.
 
 ## Documents
 
@@ -80,6 +82,7 @@ Linux AIC driver probe moves to M2.
 - [Roadmap](docs/roadmap.md)
 - [Milestone 0 / 0b bench](m0/README.md)
 - [Milestone 1 model work](m1/README.md)
+- [Milestone 2 Linux-on-AIC machine](m2/README.md)
 - [Upstream source inspection, 2026-10-21](notes/2026-10-21-upstream-inspection.md)
 - [M1 Pro live hardware inspection, 2026-10-21](notes/2026-10-21-m1-pro-live-hardware.md)
 
@@ -88,6 +91,7 @@ Linux AIC driver probe moves to M2.
 ```text
 m0/         Milestone 0/0b bench: QEMU machine patch, qtest, payload, trace
 m1/         Milestone 1 model work: SMP/IPI results and trace sample
+m2/         Milestone 2 Linux-on-AIC machine: DTS, initramfs init, boot driver
 patches/    QEMU changes as patches
 docs/       research concept, prior art, upstream survey, roadmap
 notes/      dated lab and inspection notes

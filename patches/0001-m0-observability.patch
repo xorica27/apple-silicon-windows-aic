@@ -1,14 +1,20 @@
 diff --git a/hw/arm/Kconfig b/hw/arm/Kconfig
-index 82e0bc2..7b790e0 100644
+index 82e0bc2..314487a 100644
 --- a/hw/arm/Kconfig
 +++ b/hw/arm/Kconfig
-@@ -1,3 +1,10 @@
+@@ -1,3 +1,16 @@
 +config APPLE_AIC_TEST
 +    bool
 +    default y
 +    depends on TCG && AARCH64
 +    select PL011
 +    select GENERIC_LOADER
++
++config APPLE_AIC_VIRT
++    bool
++    default y
++    depends on TCG && AARCH64
++    select PL011
 +
  config ARM_VIRT
      bool
@@ -267,6 +273,186 @@ index 0000000..a78b1c3
 +}
 +
 +type_init(apple_aic_test_register_types)
+diff --git a/hw/arm/apple_aic_virt.c b/hw/arm/apple_aic_virt.c
+new file mode 100644
+index 0000000..a14dcd9
+--- /dev/null
++++ b/hw/arm/apple_aic_virt.c
+@@ -0,0 +1,174 @@
++#include "qemu/osdep.h"
++#include "qapi/error.h"
++#include "qemu/error-report.h"
++#include "hw/arm/boot.h"
++#include "hw/arm/machines-qom.h"
++#include "hw/char/pl011.h"
++#include "hw/core/cpu.h"
++#include "hw/core/irq.h"
++#include "hw/core/loader.h"
++#include "hw/core/sysbus.h"
++#include "hw/intc/apple_aic.h"
++#include "system/address-spaces.h"
++#include "system/system.h"
++#include "target/arm/cpu.h"
++
++#define TYPE_APPLE_AIC_VIRT_MACHINE MACHINE_TYPE_NAME("apple-aic-virt")
++OBJECT_DECLARE_SIMPLE_TYPE(AppleAICVirtState, APPLE_AIC_VIRT_MACHINE)
++
++#define APPLE_AIC_VIRT_RAM_BASE     0x40000000
++#define APPLE_AIC_VIRT_AIC_BASE     0x20000000
++#define APPLE_AIC_VIRT_AIC_SIZE     0x8000
++#define APPLE_AIC_VIRT_NUM_IRQS     256
++#define APPLE_AIC_VIRT_UART_BASE    0x20010000
++#define APPLE_AIC_VIRT_UART_IRQ     100
++#define APPLE_AIC_VIRT_MAX_CPUS     4
++/*
++ * Keep the spin-table mailbox and stub out of the kernel image, which is
++ * loaded at 0x40000000 and extends past 0x443d0000 for a 6.12 arm64 Image.
++ * The DTS reserves this 64 KiB window so the kernel never allocates it.
++ */
++#define APPLE_AIC_VIRT_SPIN_STUB    0x45001000
++#define APPLE_AIC_VIRT_SPIN_MAILBOX 0x45000000
++
++/*
++ * ARM64 spin-table stub:
++ *   movz x0, #0x4500, lsl #16   ; x0 = 0x45000000
++ * 1: ldr  x1, [x0]
++ *    cbz  x1, 1b
++ *    br   x1
++ */
++static const uint8_t apple_aic_virt_spin_stub[] = {
++    0x00, 0xa0, 0xa8, 0xd2, /* movz x0, #0x4500, lsl #16 */
++    0x01, 0x00, 0x40, 0xf9, /* ldr  x1, [x0] */
++    0xe1, 0xff, 0xff, 0xb4, /* cbz  x1, -4 */
++    0x20, 0x00, 0x1f, 0xd6, /* br   x1 */
++};
++
++struct AppleAICVirtState {
++    MachineState parent_obj;
++    ARMCPU *cpus[APPLE_AIC_VIRT_MAX_CPUS];
++    uint32_t num_cpus;
++    DeviceState *aic;
++    qemu_irq *aic_in;
++    uint32_t num_irqs;
++    struct arm_boot_info bootinfo;
++};
++
++static void apple_aic_virt_write_secondary(ARMCPU *cpu,
++                                           const struct arm_boot_info *info)
++{
++    rom_add_blob_fixed("apple-aic-virt-spin", apple_aic_virt_spin_stub,
++                       sizeof(apple_aic_virt_spin_stub),
++                       info->smp_loader_start);
++}
++
++static void apple_aic_virt_secondary_reset(ARMCPU *cpu,
++                                           const struct arm_boot_info *info)
++{
++    cpu->env.pc = info->smp_loader_start;
++    cpu->env.xregs[0] = 0;
++}
++
++static void apple_aic_virt_init(MachineState *ms)
++{
++    AppleAICVirtState *s = APPLE_AIC_VIRT_MACHINE(ms);
++    MemoryRegion *ram = g_new(MemoryRegion, 1);
++    uint32_t i;
++
++    s->num_cpus = ms->smp.cpus;
++    if (s->num_cpus > APPLE_AIC_VIRT_MAX_CPUS) {
++        error_report("apple-aic-virt supports at most %d CPUs",
++                     APPLE_AIC_VIRT_MAX_CPUS);
++        exit(1);
++    }
++
++    memory_region_init_ram(ram, NULL, "apple-aic-virt.ram", ms->ram_size,
++                           &error_fatal);
++    memory_region_add_subregion(get_system_memory(), APPLE_AIC_VIRT_RAM_BASE,
++                                ram);
++
++    s->num_irqs = APPLE_AIC_VIRT_NUM_IRQS;
++    s->aic = apple_aic_create_simple(AIC_V1, s->num_irqs, s->num_cpus,
++                                     APPLE_AIC_VIRT_AIC_SIZE, 0x2004);
++    sysbus_mmio_map(SYS_BUS_DEVICE(s->aic), 0, APPLE_AIC_VIRT_AIC_BASE);
++
++    s->aic_in = g_new0(qemu_irq, s->num_irqs);
++    for (i = 0; i < s->num_irqs; i++) {
++        s->aic_in[i] = qdev_get_gpio_in(s->aic, i);
++    }
++
++    pl011_create(APPLE_AIC_VIRT_UART_BASE,
++                 s->aic_in[APPLE_AIC_VIRT_UART_IRQ], serial_hd(0));
++
++    for (i = 0; i < s->num_cpus; i++) {
++        Object *cpuobj = object_new(ms->cpu_type);
++        ARMCPU *cpu = ARM_CPU(cpuobj);
++        DeviceState *cpudev = DEVICE(cpuobj);
++
++        cpu->has_el2 = false;
++        cpu->has_el3 = false;
++        unset_feature(&cpu->env, ARM_FEATURE_EL2);
++        unset_feature(&cpu->env, ARM_FEATURE_EL3);
++        cpu->gt_cntfrq_hz = 24000000;
++
++        qdev_realize(cpudev, NULL, &error_fatal);
++        s->cpus[i] = cpu;
++
++        qdev_connect_gpio_out(s->aic, i,
++                              qdev_get_gpio_in(cpudev, ARM_CPU_IRQ));
++        /*
++         * Linux at EL1 uses the virtual timer PPI, which the AIC exposes
++         * through the FIQ path. Wiring GTIMER_PHYS here instead leaves a
++         * physical-timer FIQ with no registered action, which surfaces as
++         * "Spurious percpu IRQ" and then storms.
++         */
++        qdev_connect_gpio_out(cpudev, GTIMER_VIRT,
++                              qdev_get_gpio_in(cpudev, ARM_CPU_FIQ));
++    }
++
++    s->bootinfo.ram_size = ms->ram_size;
++    s->bootinfo.board_id = -1;
++    s->bootinfo.loader_start = APPLE_AIC_VIRT_RAM_BASE;
++    s->bootinfo.kernel_filename = ms->kernel_filename;
++    s->bootinfo.kernel_cmdline = ms->kernel_cmdline;
++    s->bootinfo.initrd_filename = ms->initrd_filename;
++    s->bootinfo.psci_conduit = QEMU_PSCI_CONDUIT_DISABLED;
++    s->bootinfo.smp_loader_start = APPLE_AIC_VIRT_SPIN_STUB;
++    s->bootinfo.smp_bootreg_addr = APPLE_AIC_VIRT_SPIN_MAILBOX;
++    s->bootinfo.write_secondary_boot = apple_aic_virt_write_secondary;
++    s->bootinfo.secondary_cpu_reset_hook = apple_aic_virt_secondary_reset;
++
++    arm_load_kernel(ARM_CPU(first_cpu), ms, &s->bootinfo);
++}
++
++static void apple_aic_virt_machine_init(MachineClass *mc)
++{
++    mc->desc = "Apple AIC virtual machine";
++    mc->init = apple_aic_virt_init;
++    mc->max_cpus = APPLE_AIC_VIRT_MAX_CPUS;
++    mc->default_cpu_type = ARM_CPU_TYPE_NAME("max");
++}
++
++static void apple_aic_virt_machine_class_init(ObjectClass *oc,
++                                              const void *data)
++{
++    MachineClass *mc = MACHINE_CLASS(oc);
++
++    apple_aic_virt_machine_init(mc);
++}
++
++static const TypeInfo apple_aic_virt_machine_typeinfo = {
++    .name = TYPE_APPLE_AIC_VIRT_MACHINE,
++    .parent = TYPE_MACHINE,
++    .class_init = apple_aic_virt_machine_class_init,
++    .instance_size = sizeof(AppleAICVirtState),
++    .interfaces = arm_machine_interfaces,
++};
++
++static void apple_aic_virt_register_types(void)
++{
++    type_register_static(&apple_aic_virt_machine_typeinfo);
++}
++
++type_init(apple_aic_virt_register_types)
 diff --git a/hw/arm/darwin.c b/hw/arm/darwin.c
 index 246476d..fd21188 100644
 --- a/hw/arm/darwin.c
@@ -281,12 +467,13 @@ index 246476d..fd21188 100644
      struct dtree_node *uart0 = adt_find_node(dt_root, "arm-io/uart0");
      if (!uart0) {
 diff --git a/hw/arm/meson.build b/hw/arm/meson.build
-index 2a21540..51399a9 100644
+index 2a21540..39cc9c8 100644
 --- a/hw/arm/meson.build
 +++ b/hw/arm/meson.build
-@@ -1,4 +1,5 @@
+@@ -1,4 +1,6 @@
  arm_common_ss = ss.source_set()
 +arm_common_ss.add(when: 'CONFIG_APPLE_AIC_TEST', if_true: files('apple_aic_test.c'))
++arm_common_ss.add(when: 'CONFIG_APPLE_AIC_VIRT', if_true: files('apple_aic_virt.c'))
  arm_common_ss.add(when: 'CONFIG_ARM_VIRT', if_true: files('virt.c'))
  arm_common_ss.add(when: 'CONFIG_ACPI', if_true: files('virt-acpi-build.c'))
  arm_common_ss.add(when: 'CONFIG_DIGIC', if_true: files('digic_boards.c'))
