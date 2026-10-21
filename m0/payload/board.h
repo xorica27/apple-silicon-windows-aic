@@ -23,6 +23,9 @@
 #define UART_KIND_PL011 1
 #define UART_BASE 0x20010000UL
 #define UART_IRQ 100
+#define SMP_TEST 1
+#define AIC_IPI_SEND 0x2008
+#define AIC_IPI_ACK 0x200c
 
 #elif BOARD == BOARD_QEMU_V2
 #define BOARD_NAME "qemu-v2"
@@ -39,6 +42,7 @@
 #define UART_KIND_PL011 1
 #define UART_BASE 0x39B200000UL
 #define UART_IRQ 1097
+#define SMP_TEST 0
 
 #elif BOARD == BOARD_M1PRO
 #define BOARD_NAME "m1pro-t600x"
@@ -55,6 +59,7 @@
 #define UART_KIND_APPLE 1
 #define UART_BASE 0x39B200000UL
 #define UART_IRQ 1097
+#define SMP_TEST 0
 #define PMGR_EAST_BASE 0x28E580000UL
 
 #else

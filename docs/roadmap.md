@@ -9,8 +9,11 @@ M0 (QEMU observability bench) is concluded for AIC v1 and v2: AIC trace events,
 the `apple-aic-test` and `apple-aic-v2-test` machines, an 8/8 qtest, and
 bare-metal payloads that take UART IRQs through AIC and a timer via AIC (v1) or
 FIQ (v2). M0b (M1 Pro hardware execution) is open: the payload is cross-compiled
-but has not been booted. IPI is part of M1. See
-[`m0/README.md`](../m0/README.md) and
+but has not been booted. M1's model portion is complete: multi-CPU, targeting,
+AICv1 MMIO IPIs, mask/SW/hardware-state/info registers, 64-bit MMIO, and reset;
+qtest 15/15; the v1 SMP/IPI payload passes. The Linux AIC driver probe moves to
+M2. See [`m0/README.md`](../m0/README.md),
+[`m1/README.md`](../m1/README.md), and
 [`notes/2026-10-21-m1-pro-live-hardware.md`](../notes/2026-10-21-m1-pro-live-hardware.md).
 
 ## Goal and definition of done
@@ -110,11 +113,17 @@ Tasks:
 Exit criteria:
 
 - Bare-metal SMP and IPI tests pass in QEMU.
-- The Linux AIC driver probes successfully on the model.
+- Linux AIC driver probe (deferred to M2; requires the general-purpose machine
+  and device tree).
 
 Dependencies: M0 (M0b can run in parallel).
 
 Main risk: AIC semantics that Linux uses but the model omits.
+
+**Status (2026-10-21):** model portion complete. Multi-CPU, target registers,
+AICv1 MMIO IPIs, mask/SW/hw-state/info registers, 64-bit MMIO, and reset are
+implemented; qtest is 15/15; the v1 SMP/IPI payload passes (3/3). AICv2 fast
+IPIs use system registers and are not modeled. The Linux probe is M2.
 
 ## M2 — General-purpose machine
 

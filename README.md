@@ -67,7 +67,10 @@ The stretch result is a patched Windows desktop on the model, then on hardware.
 Concept and upstream survey (October 2026). There is no Windows patch here.
 Milestone 0 (QEMU AIC observability bench) is concluded for AIC v1 and v2.
 Milestone 0b (M1 Pro hardware execution) is open: the hardware payload is
-cross-compiled but has not been booted. See [Milestone 0 / 0b](m0/README.md).
+cross-compiled but has not been booted. Milestone 1's model portion is complete
+on QEMU: multi-CPU, targeting, AICv1 MMIO IPIs, mask/SW/hardware-state
+registers, 64-bit MMIO, and reset; qtest 15/15; the SMP/IPI payload passes. The
+Linux AIC driver probe moves to M2.
 
 ## Documents
 
@@ -76,6 +79,7 @@ cross-compiled but has not been booted. See [Milestone 0 / 0b](m0/README.md).
 - [Upstream survey](docs/upstream-survey.md)
 - [Roadmap](docs/roadmap.md)
 - [Milestone 0 / 0b bench](m0/README.md)
+- [Milestone 1 model work](m1/README.md)
 - [Upstream source inspection, 2026-10-21](notes/2026-10-21-upstream-inspection.md)
 - [M1 Pro live hardware inspection, 2026-10-21](notes/2026-10-21-m1-pro-live-hardware.md)
 
@@ -83,6 +87,7 @@ cross-compiled but has not been booted. See [Milestone 0 / 0b](m0/README.md).
 
 ```text
 m0/         Milestone 0/0b bench: QEMU machine patch, qtest, payload, trace
+m1/         Milestone 1 model work: SMP/IPI results and trace sample
 patches/    QEMU changes as patches
 docs/       research concept, prior art, upstream survey, roadmap
 notes/      dated lab and inspection notes

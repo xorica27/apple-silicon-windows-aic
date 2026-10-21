@@ -6,6 +6,10 @@
 static volatile int uart_irq_seen;
 static volatile int timer_irq_seen;
 
+volatile uint32_t smp_ready;
+volatile uint32_t secondary_ready;
+volatile uint32_t secondary_ipi_seen;
+
 static void uart_putc(char c);
 
 static inline void mmio_write32(uintptr_t addr, uint32_t value)
@@ -217,9 +221,21 @@ static void aic_ack(uint32_t irq)
     mmio_write32(AIC_BASE + AIC_ACK_BASE + (irq / 32) * 4,
                  1u << (irq % 32));
 #else
-    (void)irq; /* IACK read clears the pending bit on AIC v2 */
+    (void)irq; /* IACK read clears the pending bit */
 #endif
 }
+
+#if SMP_TEST
+static void aic_ipi_send(uint32_t mask)
+{
+    mmio_write32(AIC_BASE + AIC_IPI_SEND, mask);
+}
+
+static void aic_ipi_ack(void)
+{
+    mmio_write32(AIC_BASE + AIC_IPI_ACK, 1); /* AIC_IPI_OTHER */
+}
+#endif
 
 static inline uint64_t read_cntfrq(void)
 {
@@ -277,6 +293,17 @@ void c_irq_handler(void)
         return;
     }
 
+#if SMP_TEST
+    uint32_t type = (iack >> 16) & 0xff;
+
+    if (type == 4) {
+        aic_ipi_ack();
+        uart_puts("CPU IPI\n");
+        secondary_ipi_seen = 1;
+        return;
+    }
+#endif
+
     uint32_t irq = iack & 0xffff;
 
     if (irq == UART_IRQ) {
@@ -318,15 +345,34 @@ void c_default_handler(void)
     }
 }
 
+void secondary_main(void)
+{
+#if SMP_TEST
+    enable_irqs();
+    secondary_ready = 0x12345678;
+    while (!secondary_ipi_seen) {
+        __asm__ volatile("wfi");
+    }
+#endif
+
+    for (;;) {
+        __asm__ volatile("wfi");
+    }
+}
+
 int main(void)
 {
     uint32_t num_ints;
 
     uart_init();
-    uart_puts("M0 AIC payload board=" BOARD_NAME "\n");
+    uart_puts("AIC payload board=" BOARD_NAME "\n");
     uart_puts("CurrentEL=");
     uart_puthex(current_el());
     uart_puts("\n");
+
+#if SMP_TEST
+    smp_ready = 0x5a5a5a5a;
+#endif
 
     num_ints = mmio_read32(AIC_BASE + AIC_NUM_INTS);
     uart_puts("AIC version=");
@@ -369,7 +415,21 @@ int main(void)
     aic_disable(AIC_TIMER_IRQ);
 #endif
 
-    uart_puts("IPI: deferred to M1 (single-CPU model)\n");
+#if SMP_TEST
+    uart_puts("SMP: wait for CPU1\n");
+    while (secondary_ready != 0x12345678) {
+        __asm__ volatile("yield");
+    }
+    uart_puts("SMP: send IPI\n");
+    aic_ipi_send(1u << 1);
+    while (!secondary_ipi_seen) {
+        __asm__ volatile("yield");
+    }
+    uart_puts("SMP/IPI ok\n");
+#else
+    uart_puts("IPI: deferred (no AICv2 MMIO IPI path)\n");
+#endif
+
     uart_puts("PASS\n");
 
     disable_irqs();

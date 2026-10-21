@@ -4,10 +4,13 @@
 _start:
     mrs x0, mpidr_el1
     and x0, x0, #0xff
-    cbnz x0, park
 
-    ldr x0, =__stack_top
-    mov sp, x0
+    ldr x1, =__stack_top
+    lsl x2, x0, #16
+    sub x1, x1, x2
+    mov sp, x1
+
+    cbnz x0, secondary
 
     ldr x0, =__bss_start
     ldr x1, =__bss_end
@@ -25,6 +28,21 @@ _start:
 
 park:
     wfi
+    b park
+
+secondary:
+    ldr x1, =smp_ready
+1:
+    ldr w2, [x1]
+    mov w3, #0x5a5a
+    movk w3, #0x5a5a, lsl #16
+    cmp w2, w3
+    b.ne 1b
+
+    ldr x0, =vectors
+    msr vbar_el1, x0
+    isb
+    bl secondary_main
     b park
 
 .macro vector_entry label

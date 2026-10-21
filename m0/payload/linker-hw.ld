@@ -34,6 +34,6 @@ SECTIONS
     }
 
     . = ALIGN(16);
-    . += 0x10000;
+    . += 0x40000;
     __stack_top = .;
 }

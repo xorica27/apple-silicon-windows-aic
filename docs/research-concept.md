@@ -332,15 +332,16 @@ required," not as a bare-metal success.
 |---|---|---|
 | M0 | QEMU observability bench | AIC v1/v2 traces captured; 8/8 qtest; payloads pass on QEMU v1/v2 |
 | M0b | M1 Pro hardware execution | Payload boots at EL1 under `m1n1`; UART/FIQ evidence captured |
-| M1 | AIC model extensions (SMP/IPI/FIQ) | SMP/IPI/FIQ/target tests pass in QEMU |
+| M1 | AIC model extensions (SMP/IPI/FIQ) | SMP/IPI/FIQ/target tests pass in QEMU; Linux probe in M2 |
 | M2 | General-purpose machine | Linux boots to userspace with AIC and device tree |
 | M3 | Linux validation | 4 CPUs online; timer, IPIs, virtio-blk, and stress pass without lost IRQs |
 | M4 | Stock Windows | Reproducible `ntoskrnl` freeze; full trace captured |
 | M5 | Patched Windows on model | Functional desktop on the AIC model, with no EL2 shim |
 | M6 | Hardware validation | Functional desktop on a sacrificial Apple Silicon Mac (M1 Pro primary); no-EL2 protocol passes |
 
-M0 is concluded on the QEMU bench; M0b is open; IPI is part of M1. Detailed
-dependencies and decision points are in the [roadmap](roadmap.md).
+M0 is concluded on the QEMU bench; M0b is open; M1's model work is complete on
+QEMU. The Linux AIC driver probe moves to M2. Detailed dependencies and decision
+points are in the [roadmap](roadmap.md).
 
 ## 8. Evaluation criteria
 

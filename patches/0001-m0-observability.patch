@@ -15,10 +15,10 @@ index 82e0bc2..7b790e0 100644
      default y
 diff --git a/hw/arm/apple_aic_test.c b/hw/arm/apple_aic_test.c
 new file mode 100644
-index 0000000..39143f2
+index 0000000..a78b1c3
 --- /dev/null
 +++ b/hw/arm/apple_aic_test.c
-@@ -0,0 +1,229 @@
+@@ -0,0 +1,248 @@
 +#include "qemu/osdep.h"
 +#include "qapi/error.h"
 +#include "hw/arm/boot.h"
@@ -28,6 +28,7 @@ index 0000000..39143f2
 +#include "hw/core/irq.h"
 +#include "hw/intc/apple_aic.h"
 +#include "system/address-spaces.h"
++#include "system/reset.h"
 +#include "system/system.h"
 +#include "target/arm/cpu.h"
 +
@@ -38,6 +39,8 @@ index 0000000..39143f2
 +#define APPLE_AIC_TEST_RAM_BASE     0x40000000
 +#define APPLE_AIC_TEST_CTRL_BASE    0x20020000
 +#define APPLE_AIC_TEST_CTRL_SIZE    0x1000
++#define APPLE_AIC_TEST_ENTRY        0x40000000
++#define APPLE_AIC_TEST_MAX_CPUS     4
 +
 +#define APPLE_AIC_TEST_CTRL_SET     0x0
 +#define APPLE_AIC_TEST_CTRL_CLEAR   0x4
@@ -47,7 +50,6 @@ index 0000000..39143f2
 +    uint32_t num_irqs;
 +    uint64_t aic_physlen;
 +    uint64_t iack_offset;
-+    bool has_ack_region;
 +    uint64_t aic_base;
 +    uint64_t uart_base;
 +    uint32_t uart_irq;
@@ -60,7 +62,6 @@ index 0000000..39143f2
 +    .num_irqs = 256,
 +    .aic_physlen = 0x8000,
 +    .iack_offset = 0x2004,
-+    .has_ack_region = true,
 +    .aic_base = 0x20000000,
 +    .uart_base = 0x20010000,
 +    .uart_irq = 100,
@@ -78,7 +79,6 @@ index 0000000..39143f2
 +    .num_irqs = 4096,
 +    .aic_physlen = 0x50000,
 +    .iack_offset = 0xC000,
-+    .has_ack_region = false,
 +    .aic_base = 0x28E100000,
 +    .uart_base = 0x39B200000,
 +    .uart_irq = 1097,
@@ -88,7 +88,8 @@ index 0000000..39143f2
 +
 +struct AppleAICTestState {
 +    MachineState parent_obj;
-+    ARMCPU *cpu;
++    ARMCPU **cpus;
++    uint32_t num_cpus;
 +    DeviceState *aic;
 +    qemu_irq *aic_in;
 +    uint32_t num_irqs;
@@ -129,35 +130,35 @@ index 0000000..39143f2
 +    .endianness = DEVICE_NATIVE_ENDIAN,
 +};
 +
++static void apple_aic_test_reset(void *opaque)
++{
++    AppleAICTestState *s = opaque;
++
++    for (uint32_t i = 0; i < s->num_cpus; i++) {
++        s->cpus[i]->env.pc = APPLE_AIC_TEST_ENTRY;
++        s->cpus[i]->env.xregs[0] = 0;
++    }
++}
++
 +static void apple_aic_test_init(MachineState *ms,
 +                                const AppleAICTestVariant *variant)
 +{
 +    AppleAICTestState *s = APPLE_AIC_TEST_MACHINE(ms);
 +    MemoryRegion *ram = g_new(MemoryRegion, 1);
-+    Object *cpuobj;
-+    DeviceState *cpudev;
 +    uint32_t i;
 +
 +    s->variant = variant;
 +    s->num_irqs = variant->num_irqs;
++    s->num_cpus = ms->smp.cpus;
 +
 +    memory_region_init_ram(ram, NULL, "apple-aic-test.ram", ms->ram_size,
 +                           &error_fatal);
 +    memory_region_add_subregion(get_system_memory(), APPLE_AIC_TEST_RAM_BASE,
 +                                ram);
 +
-+    cpuobj = object_new(ms->cpu_type);
-+    s->cpu = ARM_CPU(cpuobj);
-+    cpudev = DEVICE(cpuobj);
-+    s->cpu->has_el2 = false;
-+    s->cpu->has_el3 = false;
-+    unset_feature(&s->cpu->env, ARM_FEATURE_EL2);
-+    unset_feature(&s->cpu->env, ARM_FEATURE_EL3);
-+    s->cpu->gt_cntfrq_hz = 24000000;
-+
 +    s->aic = apple_aic_create_simple(variant->aic_version, variant->num_irqs,
-+                                     variant->aic_physlen, variant->iack_offset,
-+                                     variant->has_ack_region);
++                                     s->num_cpus, variant->aic_physlen,
++                                     variant->iack_offset);
 +    sysbus_mmio_map(SYS_BUS_DEVICE(s->aic), 0, variant->aic_base);
 +
 +    s->aic_in = g_new0(qemu_irq, s->num_irqs);
@@ -173,16 +174,34 @@ index 0000000..39143f2
 +    pl011_create(variant->uart_base, s->aic_in[variant->uart_irq],
 +                 serial_hd(0));
 +
-+    qdev_realize(cpudev, NULL, &error_fatal);
++    s->cpus = g_new0(ARMCPU *, s->num_cpus);
 +
-+    if (variant->timer_fiq) {
-+        qdev_connect_gpio_out(cpudev, GTIMER_PHYS,
-+                              qdev_get_gpio_in(cpudev, ARM_CPU_FIQ));
-+    } else {
-+        qdev_connect_gpio_out(cpudev, GTIMER_PHYS,
-+                              s->aic_in[variant->timer_irq]);
++    for (i = 0; i < s->num_cpus; i++) {
++        Object *cpuobj = object_new(ms->cpu_type);
++        ARMCPU *cpu = ARM_CPU(cpuobj);
++        DeviceState *cpudev = DEVICE(cpuobj);
++
++        cpu->has_el2 = false;
++        cpu->has_el3 = false;
++        unset_feature(&cpu->env, ARM_FEATURE_EL2);
++        unset_feature(&cpu->env, ARM_FEATURE_EL3);
++        cpu->gt_cntfrq_hz = 24000000;
++
++        qdev_realize(cpudev, NULL, &error_fatal);
++        s->cpus[i] = cpu;
++
++        qdev_connect_gpio_out(s->aic, i,
++                              qdev_get_gpio_in(cpudev, ARM_CPU_IRQ));
++        if (variant->timer_fiq) {
++            qdev_connect_gpio_out(cpudev, GTIMER_PHYS,
++                                  qdev_get_gpio_in(cpudev, ARM_CPU_FIQ));
++        } else if (i == 0) {
++            qdev_connect_gpio_out(cpudev, GTIMER_PHYS,
++                                  s->aic_in[variant->timer_irq]);
++        }
 +    }
-+    qdev_connect_gpio_out(s->aic, 0, qdev_get_gpio_in(cpudev, ARM_CPU_IRQ));
++
++    qemu_register_reset(apple_aic_test_reset, s);
 +}
 +
 +static void apple_aic_v1_init(MachineState *ms)
@@ -199,7 +218,7 @@ index 0000000..39143f2
 +{
 +    mc->desc = "Apple AIC v1 test machine";
 +    mc->init = apple_aic_v1_init;
-+    mc->max_cpus = 1;
++    mc->max_cpus = APPLE_AIC_TEST_MAX_CPUS;
 +    mc->default_cpu_type = ARM_CPU_TYPE_NAME("max");
 +}
 +
@@ -207,7 +226,7 @@ index 0000000..39143f2
 +{
 +    mc->desc = "Apple AIC v2 test machine (M1 Pro layout)";
 +    mc->init = apple_aic_v2_init;
-+    mc->max_cpus = 1;
++    mc->max_cpus = APPLE_AIC_TEST_MAX_CPUS;
 +    mc->default_cpu_type = ARM_CPU_TYPE_NAME("max");
 +}
 +
@@ -248,6 +267,19 @@ index 0000000..39143f2
 +}
 +
 +type_init(apple_aic_test_register_types)
+diff --git a/hw/arm/darwin.c b/hw/arm/darwin.c
+index 246476d..fd21188 100644
+--- a/hw/arm/darwin.c
++++ b/hw/arm/darwin.c
+@@ -252,7 +252,7 @@ static void darwin_init(MachineState *ms) {
+     uint64_t iobase = arm_io_ranges[IO_RANGE_BASE_OFFSET];
+     assert(0 == arm_io_ranges[0]); // child bus phys addr must be zero
+ 
+-    s->aic = apple_aic_create(adt_find_node(dt_root, "arm-io/aic"), iobase);
++    s->aic = apple_aic_create(adt_find_node(dt_root, "arm-io/aic"), iobase, 1);
+ 
+     struct dtree_node *uart0 = adt_find_node(dt_root, "arm-io/uart0");
+     if (!uart0) {
 diff --git a/hw/arm/meson.build b/hw/arm/meson.build
 index 2a21540..51399a9 100644
 --- a/hw/arm/meson.build
@@ -259,18 +291,44 @@ index 2a21540..51399a9 100644
  arm_common_ss.add(when: 'CONFIG_ACPI', if_true: files('virt-acpi-build.c'))
  arm_common_ss.add(when: 'CONFIG_DIGIC', if_true: files('digic_boards.c'))
 diff --git a/hw/intc/apple_aic.c b/hw/intc/apple_aic.c
-index ec7a3af..d5d23bd 100644
+index ec7a3af..1f4eee0 100644
 --- a/hw/intc/apple_aic.c
 +++ b/hw/intc/apple_aic.c
-@@ -5,6 +5,7 @@
+@@ -1,19 +1,26 @@
+ #include "qemu/osdep.h"
+ #include "qapi/error.h"
+ #include "qemu/log.h"
++#include "qemu/bitops.h"
++#include "exec/cpu-common.h"
+ #include "target/arm/cpu.h"
  #include "hw/intc/apple_aic.h"
  #include "hw/core/sysbus.h"
  #include "hw/core/irq.h"
 +#include "trace.h"
  
  /*
-  * minimal aic implementation:
-@@ -21,9 +22,6 @@ typedef uint32_t u32;
+- * minimal aic implementation:
+- *  - knows how many interrupts there are
+- *  - knows which are enabled/ disabled
+- *  - can receive interrupts from devices, and send irqs to core 0
+- *  - can respond to eoi conditions
+- *  - supports v1-3
+- *  - ignores everything else
++ * Minimal Apple Interrupt Controller model.
++ *
++ * Supported:
++ *  - AIC v1/v2/v3 register layouts
++ *  - multiple CPUs, per-CPU IRQ outputs, per-IRQ target masks
++ *  - mask set/clear, software set/clear, hardware-state reads
++ *  - AICv1 MMIO IPIs (AICv2 uses fast-IPI system registers, not modeled here)
++ *  - 32-bit and 64-bit MMIO accesses
++ *  - reset
++ *
++ * Not modeled: priorities, multi-die routing, FIQ sources, fast IPIs.
+  */
+ 
+ typedef uint64_t u64;
+@@ -21,260 +28,649 @@ typedef uint32_t u32;
  typedef uint16_t u16;
  typedef uint8_t  u8;
  
@@ -280,176 +338,637 @@ index ec7a3af..d5d23bd 100644
  #define TYPE_APPLE_AIC "APPLE_AIC"
  OBJECT_DECLARE_SIMPLE_TYPE(AppleAICState, APPLE_AIC)
  
-@@ -83,7 +81,7 @@ struct AppleAICState {
-     qemu_irq       irq_out;
+-// Use this for AICs where we don't know how many interrupts there should be
+ #define A_GOOD_NUMBER_OF_IRQS           0x1000
+-
+-#define IRQS_PER_WORD                   (( 8 * sizeof(u32) ))
+-#define AIC_EOI_FLAG_VALID_INT          0x10000
+-
+-/* ref: AppleInterruptControllerVX::enableVector & ::initVector */
+-#define AIC1_REG_NUM_INTS               0x4
+-#define AIC1_REG_IACK                   0x2004
+-#define AIC1_ACK_BASE                   0x4080
+-#define AIC1_ACK_SIZE                   0x80
+-#define AIC1_DISABLE_BASE               0x4100
+-#define AIC1_DISABLE_SIZE               0x80
+-#define AIC1_ENABLE_BASE                0x4180
+-#define AIC1_ENABLE_SIZE                0x80
+-
+-#define AIC2_REG_NUM_INTS               0x0C
+-#define AIC2_DISABLE_BASE               0x6400
+-#define AIC2_DISABLE_SIZE               0x200
+-#define AIC2_ENABLE_BASE                0x6600
+-#define AIC2_ENABLE_SIZE                0x200
+-
+-#define AIC3_REG_NUM_INTS               0x0C
+-#define AIC3_DISABLE_BASE               0x14400
+-#define AIC3_DISABLE_SIZE               0x200
+-#define AIC3_ENABLE_BASE                0x14600
+-#define AIC3_ENABLE_SIZE                0x200
+-
+-/*
+- * FOR_BITVEC_IN
+- * o: offset of a register access
+- * b: base on the MMIO region to test for
+- * sz: size of the MMIO region to test for
+- *
+- * If the register access at offset o is within the MMIO region starting at b
+- * and sz bytes large, this will loop over every bit in the register, and
+- * define the irqnum variable to correspond to which interrupt number the
+- * current iteration refers to.
+- *
+- * It won't do anything if offset isn't within the bounds of this MMIO region.
+- *
+- * Yes, this macro is *extremely* cursed. No I'm not sorry.
+- */
+-#define FOR_BITVEC_IN(o, b, sz) \
+-    for (size_t i = 0, irqnum = 0; \
+-        addr_between(o, b, sz) && i < IRQS_PER_WORD; \
+-        i++, irqnum = i + IRQS_PER_WORD * ((o - b) >> 2))
++#define AIC_MAX_CPUS                    8
++
++#define AIC_EVENT_TYPE_SHIFT            16
++#define AIC_EVENT_TYPE_MASK             0xff
++#define AIC_EVENT_NUM_MASK              0xffff
++#define AIC_EVENT_TYPE_IRQ              1
++#define AIC_EVENT_TYPE_IPI              4
++#define AIC_EVENT_IPI_OTHER             1
++#define AIC_EVENT_IPI_SELF              2
++
++#define AIC_WHOAMI                      0x2000
++#define AIC_EVENT                       0x2004
++#define AIC_IPI_SEND                    0x2008
++#define AIC_IPI_ACK                     0x200c
++#define AIC_IPI_MASK_SET                0x2024
++#define AIC_IPI_MASK_CLR                0x2028
++#define AIC_CPU_IPI_SET(cpu)            (0x5008 + ((cpu) << 7))
++#define AIC_CPU_IPI_CLR(cpu)            (0x500c + ((cpu) << 7))
++#define AIC_CPU_IPI_MASK_SET(cpu)       (0x5024 + ((cpu) << 7))
++#define AIC_CPU_IPI_MASK_CLR(cpu)       (0x5028 + ((cpu) << 7))
++
++#define AIC2_VERSION                    0x0000
++#define AIC2_INFO1                      0x0004
++#define AIC2_INFO3                      0x000c
++#define AIC2_RESET                      0x0010
++#define AIC2_CONFIG                     0x0014
++#define AIC2_IRQ_CFG                    0x2000
++#define AIC3_IRQ_CFG                    0x10000
++
++#define AIC_V1_MAX_IRQ                  0x400
+ 
+ struct AppleAICState {
+     SysBusDevice   parent_obj;
+     MemoryRegion   mmio;
+-    size_t         physlen;
++    uint64_t       physlen;
+     uint32_t       num_irqs;
+-    qemu_irq       irq_out;
++    uint32_t       num_cpus;
++    qemu_irq      *irq_out;
      bool          *enable;
      bool          *pending;
 -    aic_version_t  version;
+-    bool           has_ack_region;
+-    size_t         r_iack;
+-    size_t         r_num_ints;
+-    size_t         r_enable_base, r_enable_size;
+-    size_t         r_disable_base, r_disable_size;
+-    size_t         r_ack_base, r_ack_size; // only valid if has_ack_region
++    bool          *irq_level;
++    uint32_t      *target_mask;
++    bool          *ipi_pending;
++    bool          *ipi_masked;
 +    uint32_t       version;
-     bool           has_ack_region;
-     size_t         r_iack;
-     size_t         r_num_ints;
-@@ -96,10 +94,23 @@ static bool addr_between(hwaddr addr, hwaddr base, size_t len) {
++    uint32_t       info_offset;
++    uint32_t       info3_offset;
++    uint32_t       whoami_offset;
++    uint32_t       event_offset;
++    uint32_t       target_base;
++    uint32_t       target_stride;
++    uint32_t       sw_set;
++    uint32_t       sw_clr;
++    uint32_t       mask_set;
++    uint32_t       mask_clr;
++    uint32_t       hw_state;
++    bool           target_is_mask;
++    uint32_t       config;
+ };
+ 
+ static bool addr_between(hwaddr addr, hwaddr base, size_t len) {
      return addr >= base && addr < base + len;
  }
  
-+static uint32_t apple_aic_pending_count(AppleAICState *aic)
+-static void apple_aic_update_irqs(AppleAICState *aic) {
+-    for (size_t i = 0; i < aic->num_irqs; i++) {
+-        if (aic->pending[i] && aic->enable[i]) {
+-            aic_log("aic: raising IRQ\n");
+-            qemu_irq_raise(aic->irq_out);
+-            return;
++static uint32_t aic_current_cpu(AppleAICState *aic)
 +{
-+    uint32_t count = 0;
++    CPUState *cs = current_cpu;
 +
-+    for (size_t i = 0; i < aic->num_irqs; i++) {
-+        if (aic->pending[i] && aic->enable[i]) {
-+            count++;
-+        }
++    if (!cs || cs->cpu_index >= aic->num_cpus) {
++        return 0;
 +    }
-+
-+    return count;
++    return cs->cpu_index;
 +}
 +
- static void apple_aic_update_irqs(AppleAICState *aic) {
-     for (size_t i = 0; i < aic->num_irqs; i++) {
-         if (aic->pending[i] && aic->enable[i]) {
--            aic_log("aic: raising IRQ\n");
-+            trace_apple_aic_raise(i);
-             qemu_irq_raise(aic->irq_out);
-             return;
-         }
-@@ -112,27 +123,31 @@ static u64 aic_handle_eoi(AppleAICState *aic) {
-     for (size_t i = 0; i < aic->num_irqs; i++) {
-         if (aic->pending[i] && aic->enable[i]) {
-             if (!aic->has_ack_region) aic->pending[i] = false;
--            aic_log("aic: EOI for int num %zu\n", i);
-+            trace_apple_aic_eoi(i, apple_aic_pending_count(aic));
-             return i | AIC_EOI_FLAG_VALID_INT;
++static uint32_t aic_bitvec_words(uint32_t num_irqs)
++{
++    return (num_irqs + 31) / 32;
++}
++
++static bool aic_bitvec_range(AppleAICState *aic, uint32_t base,
++                             hwaddr offset)
++{
++    return addr_between(offset, base, 4 * aic_bitvec_words(aic->num_irqs));
++}
++
++static void aic_bitvec_write(bool *vec, uint32_t num_irqs, uint32_t base,
++                             hwaddr offset, uint32_t value, bool set)
++{
++    uint32_t word = (offset - base) / 4;
++    uint32_t irq = word * 32;
++
++    for (uint32_t i = 0; i < 32 && irq + i < num_irqs; i++) {
++        if (value & (1u << i)) {
++            vec[irq + i] = set;
          }
      }
- 
-     // All interrupts handled, we can shut down now
--    aic_log("aic: EOI with no remaining interrupts\n");
-+    trace_apple_aic_eoi(0, 0);
-     qemu_irq_lower(aic->irq_out);
-     return 0;
  }
  
- static uint64_t apple_aic_read(void *opaque, hwaddr offset, unsigned size) {
-     AppleAICState *aic = APPLE_AIC(opaque);
-+    uint64_t value = 0;
+-static u64 aic_handle_eoi(AppleAICState *aic) {
+-    // AppleInterruptController::handleInterrupt will keep looping looking for
+-    // more interrupts until this register returns 0.
+-    for (size_t i = 0; i < aic->num_irqs; i++) {
+-        if (aic->pending[i] && aic->enable[i]) {
+-            if (!aic->has_ack_region) aic->pending[i] = false;
+-            aic_log("aic: EOI for int num %zu\n", i);
+-            return i | AIC_EOI_FLAG_VALID_INT;
++static uint32_t aic_bitvec_read(const bool *vec, uint32_t num_irqs,
++                                uint32_t base, hwaddr offset)
++{
++    uint32_t word = (offset - base) / 4;
++    uint32_t irq = word * 32;
++    uint32_t value = 0;
++
++    for (uint32_t i = 0; i < 32 && irq + i < num_irqs; i++) {
++        if (vec[irq + i]) {
++            value |= 1u << i;
+         }
+     }
++    return value;
++}
  
-     assert(sizeof(uint32_t) == size);
+-    // All interrupts handled, we can shut down now
+-    aic_log("aic: EOI with no remaining interrupts\n");
+-    qemu_irq_lower(aic->irq_out);
+-    return 0;
++static bool aic_target_range(AppleAICState *aic, hwaddr offset)
++{
++    return addr_between(offset, aic->target_base,
++                        4 * aic->num_irqs);
+ }
+ 
+-static uint64_t apple_aic_read(void *opaque, hwaddr offset, unsigned size) {
+-    AppleAICState *aic = APPLE_AIC(opaque);
++static void aic_target_write(AppleAICState *aic, hwaddr offset,
++                             uint32_t value)
++{
++    uint32_t irq = (offset - aic->target_base) / aic->target_stride;
++    uint32_t mask;
+ 
+-    assert(sizeof(uint32_t) == size);
++    if (irq >= aic->num_irqs) {
++        return;
++    }
  
 -    aic_log("aic: read(offset 0x%llX, pc 0x%llX, lr 0x%llX)\n", offset, cpu_env(qemu_get_cpu(0))->pc, cpu_env(qemu_get_cpu(0))->xregs[30]);
-+    if (aic->r_num_ints == offset) {
-+        value = aic->num_irqs;
-+    } else if (aic->r_iack == offset) {
-+        value = aic_handle_eoi(aic);
++    if (aic->target_is_mask) {
++        mask = value & ((aic->num_cpus >= 32) ? 0xffffffffu
++                                               : ((1u << aic->num_cpus) - 1));
++    } else {
++        uint32_t cpu = value & 0xf;
++        mask = (cpu < aic->num_cpus) ? (1u << cpu) : 1u;
 +    }
  
 -    if (aic->r_num_ints == offset) return aic->num_irqs;
 -    if (aic->r_iack == offset) return aic_handle_eoi(aic);
 -    return 0;
-+    trace_apple_aic_read(offset, size, value);
-+    return value;
++    aic->target_mask[irq] = mask ? mask : 1u;
++    trace_apple_aic_target(irq, aic->target_mask[irq]);
  }
  
- static void apple_aic_write(void *opaque, hwaddr offset, uint64_t value, unsigned size) {
-@@ -140,18 +155,18 @@ static void apple_aic_write(void *opaque, hwaddr offset, uint64_t value, unsigne
+-static void apple_aic_write(void *opaque, hwaddr offset, uint64_t value, unsigned size) {
+-    AppleAICState *aic = APPLE_AIC(opaque);
++static uint32_t aic_target_read(AppleAICState *aic, hwaddr offset)
++{
++    uint32_t irq = (offset - aic->target_base) / aic->target_stride;
  
-     assert(sizeof(uint32_t) == size);
+-    assert(sizeof(uint32_t) == size);
++    if (irq >= aic->num_irqs) {
++        return 0;
++    }
++    if (aic->target_is_mask) {
++        return aic->target_mask[irq];
++    }
++    return ctz32(aic->target_mask[irq]);
++}
  
 -    aic_log("aic: write(offset 0x%llX, value 0x%llX, pc 0x%llX, lr 0x%llX)\n", offset, value, cpu_env(qemu_get_cpu(0))->pc, cpu_env(qemu_get_cpu(0))->xregs[30]);
-+    trace_apple_aic_write(offset, size, value);
++static uint32_t aic_pending_count(AppleAICState *aic)
++{
++    uint32_t count = 0;
  
-     FOR_BITVEC_IN(offset, aic->r_disable_base, aic->r_disable_size) {
-         if (1 & (value >> i)) {
+-    FOR_BITVEC_IN(offset, aic->r_disable_base, aic->r_disable_size) {
+-        if (1 & (value >> i)) {
 -            aic_log("aic: disabling IRQ %ld\n", irqnum);
-+            trace_apple_aic_disable(irqnum);
-             aic->enable[irqnum] = false;
+-            aic->enable[irqnum] = false;
++    for (uint32_t i = 0; i < aic->num_irqs; i++) {
++        if (aic->pending[i] && aic->enable[i]) {
++            count++;
          }
      }
++    return count;
++}
  
-     FOR_BITVEC_IN(offset, aic->r_enable_base, aic->r_enable_size) {
-         if (1 & (value >> i)) {
+-    FOR_BITVEC_IN(offset, aic->r_enable_base, aic->r_enable_size) {
+-        if (1 & (value >> i)) {
 -            aic_log("aic: enabling IRQ %ld\n", irqnum);
-+            trace_apple_aic_enable(irqnum);
-             aic->enable[irqnum] = true;
+-            aic->enable[irqnum] = true;
++static void apple_aic_update_irqs(AppleAICState *aic)
++{
++    for (uint32_t cpu = 0; cpu < aic->num_cpus; cpu++) {
++        bool level = aic->ipi_pending[cpu] && !aic->ipi_masked[cpu];
++        uint32_t irq = 0;
++
++        if (!level) {
++            for (irq = 0; irq < aic->num_irqs; irq++) {
++                if (aic->pending[irq] && aic->enable[irq] &&
++                    (aic->target_mask[irq] & (1u << cpu))) {
++                    level = true;
++                    break;
++                }
++            }
          }
-     }
-@@ -159,7 +174,7 @@ static void apple_aic_write(void *opaque, hwaddr offset, uint64_t value, unsigne
-     if (aic->has_ack_region) {
-         FOR_BITVEC_IN(offset, aic->r_ack_base, aic->r_ack_size) {
-             if (1 & (value >> i)) {
+-    }
+ 
+-    if (aic->has_ack_region) {
+-        FOR_BITVEC_IN(offset, aic->r_ack_base, aic->r_ack_size) {
+-            if (1 & (value >> i)) {
 -                aic_log("aic: acknowledging IRQ %ld\n", irqnum);
-+                trace_apple_aic_ack(irqnum);
-                 aic->pending[irqnum] = false;
+-                aic->pending[irqnum] = false;
++        if (level == aic->irq_level[cpu]) {
++            continue;
++        }
++
++        aic->irq_level[cpu] = level;
++        if (level) {
++            if (aic->ipi_pending[cpu] && !aic->ipi_masked[cpu]) {
++                trace_apple_aic_ipi_raise(cpu);
++            } else if (irq < aic->num_irqs) {
++                trace_apple_aic_raise(irq);
              }
-         }
-@@ -170,7 +185,9 @@ static void apple_aic_write(void *opaque, hwaddr offset, uint64_t value, unsigne
- 
- static void apple_aic_irq_request(void *opaque, int n, int level) {
-     AppleAICState *aic = opaque;
--    aic_log("aic: interrupt %d taken (level %d)\n", n, level);
-+
-+    trace_apple_aic_irq_request(n, level);
-+
-     if (level) aic->pending[n] = true;
-     apple_aic_update_irqs(aic);
- }
-@@ -180,9 +197,65 @@ static const MemoryRegionOps apple_aic_ops = {
-     .write = apple_aic_write,
- };
- 
-+static void apple_aic_configure(AppleAICState *aic) {
-+    switch (aic->version) {
-+        case AIC_V1:
-+            if (!aic->num_irqs) aic->num_irqs = 256;
-+            if (!aic->physlen) aic->physlen = 0x8000;
-+            aic->has_ack_region = true;
-+            aic->r_iack = AIC1_REG_IACK;
-+            aic->r_num_ints = AIC1_REG_NUM_INTS;
-+            aic->r_enable_base = AIC1_ENABLE_BASE;
-+            aic->r_enable_size = AIC1_ENABLE_SIZE;
-+            aic->r_disable_base = AIC1_DISABLE_BASE;
-+            aic->r_disable_size = AIC1_DISABLE_SIZE;
-+            aic->r_ack_base = AIC1_ACK_BASE;
-+            aic->r_ack_size = AIC1_ACK_SIZE;
-+            break;
-+
-+        case AIC_V2:
-+            if (!aic->num_irqs) aic->num_irqs = A_GOOD_NUMBER_OF_IRQS;
-+            if (!aic->physlen) aic->physlen = 0x8000;
-+            aic->has_ack_region = false;
-+            if (!aic->r_iack) aic->r_iack = 0x2004;
-+            aic->r_num_ints = AIC2_REG_NUM_INTS;
-+            aic->r_enable_base = AIC2_ENABLE_BASE;
-+            aic->r_enable_size = AIC2_ENABLE_SIZE;
-+            aic->r_disable_base = AIC2_DISABLE_BASE;
-+            aic->r_disable_size = AIC2_DISABLE_SIZE;
-+            break;
-+
-+        case AIC_V3:
-+            if (!aic->num_irqs) aic->num_irqs = A_GOOD_NUMBER_OF_IRQS;
-+            if (!aic->physlen) aic->physlen = 0x20000;
-+            aic->has_ack_region = false;
-+            if (!aic->r_iack) aic->r_iack = 0x2004;
-+            aic->r_num_ints = AIC3_REG_NUM_INTS;
-+            aic->r_enable_base = AIC3_ENABLE_BASE;
-+            aic->r_enable_size = AIC3_ENABLE_SIZE;
-+            aic->r_disable_base = AIC3_DISABLE_BASE;
-+            aic->r_disable_size = AIC3_DISABLE_SIZE;
-+            break;
-+
-+        default:
-+            break;
++            qemu_irq_raise(aic->irq_out[cpu]);
++        } else {
++            qemu_irq_lower(aic->irq_out[cpu]);
++        }
 +    }
 +}
 +
- static void apple_aic_realize(DeviceState *dev, Error **errp) {
++static uint32_t aic_event_read(AppleAICState *aic)
++{
++    uint32_t cpu = aic_current_cpu(aic);
++
++    if (aic->ipi_pending[cpu] && !aic->ipi_masked[cpu]) {
++        trace_apple_aic_ipi_event(cpu);
++        return (AIC_EVENT_TYPE_IPI << AIC_EVENT_TYPE_SHIFT) |
++               AIC_EVENT_IPI_OTHER;
++    }
++
++    for (uint32_t irq = 0; irq < aic->num_irqs; irq++) {
++        if (aic->pending[irq] && aic->enable[irq] &&
++            (aic->target_mask[irq] & (1u << cpu))) {
++            aic->pending[irq] = false;
++            trace_apple_aic_eoi(irq, aic_pending_count(aic));
++            apple_aic_update_irqs(aic);
++            return (AIC_EVENT_TYPE_IRQ << AIC_EVENT_TYPE_SHIFT) | irq;
+         }
+     }
+ 
++    trace_apple_aic_eoi(0, 0);
+     apple_aic_update_irqs(aic);
++    return 0;
+ }
+ 
+-static void apple_aic_irq_request(void *opaque, int n, int level) {
++static void aic_ipi_send(AppleAICState *aic, uint32_t value)
++{
++    for (uint32_t cpu = 0; cpu < aic->num_cpus; cpu++) {
++        if (value & (1u << cpu)) {
++            aic->ipi_pending[cpu] = true;
++            trace_apple_aic_ipi_send(cpu);
++        }
++    }
++    apple_aic_update_irqs(aic);
++}
++
++static void aic_ipi_ack(AppleAICState *aic, uint32_t value)
++{
++    uint32_t cpu = aic_current_cpu(aic);
++
++    if (value & (AIC_EVENT_IPI_OTHER | AIC_EVENT_IPI_SELF)) {
++        aic->ipi_pending[cpu] = false;
++        trace_apple_aic_ipi_ack(cpu);
++    }
++    apple_aic_update_irqs(aic);
++}
++
++static uint64_t apple_aic_read32(AppleAICState *aic, hwaddr offset)
++{
++    if (offset == aic->info_offset) {
++        return aic->num_irqs;
++    }
++    if (aic->version >= AIC_V2 && offset == AIC2_VERSION) {
++        return aic->version;
++    }
++    if (aic->info3_offset && offset == aic->info3_offset) {
++        return aic->num_irqs;
++    }
++    if (aic->whoami_offset && offset == aic->whoami_offset) {
++        return aic_current_cpu(aic);
++    }
++    if (offset == aic->event_offset) {
++        return aic_event_read(aic);
++    }
++    if (aic->version >= AIC_V2 && offset == AIC2_CONFIG) {
++        return aic->config;
++    }
++    if (aic_target_range(aic, offset)) {
++        return aic_target_read(aic, offset);
++    }
++    if (aic_bitvec_range(aic, aic->sw_set, offset)) {
++        return aic_bitvec_read(aic->pending, aic->num_irqs,
++                               aic->sw_set, offset);
++    }
++    if (aic_bitvec_range(aic, aic->mask_set, offset)) {
++        return aic_bitvec_read(aic->enable, aic->num_irqs,
++                               aic->mask_set, offset);
++    }
++    if (aic_bitvec_range(aic, aic->hw_state, offset)) {
++        return aic_bitvec_read(aic->pending, aic->num_irqs,
++                               aic->hw_state, offset);
++    }
++    return 0;
++}
++
++static void apple_aic_reset(DeviceState *dev);
++
++static void apple_aic_write32(AppleAICState *aic, hwaddr offset,
++                              uint32_t value)
++{
++    if (aic->version == AIC_V1) {
++        if (offset == AIC_IPI_SEND) {
++            aic_ipi_send(aic, value);
++            return;
++        }
++        if (offset == AIC_IPI_ACK) {
++            aic_ipi_ack(aic, value);
++            return;
++        }
++        if (offset == AIC_IPI_MASK_SET) {
++            aic->ipi_masked[aic_current_cpu(aic)] = true;
++            apple_aic_update_irqs(aic);
++            return;
++        }
++        if (offset == AIC_IPI_MASK_CLR) {
++            aic->ipi_masked[aic_current_cpu(aic)] = false;
++            apple_aic_update_irqs(aic);
++            return;
++        }
++        for (uint32_t cpu = 0; cpu < aic->num_cpus; cpu++) {
++            if (offset == AIC_CPU_IPI_SET(cpu)) {
++                aic->ipi_pending[cpu] = true;
++                apple_aic_update_irqs(aic);
++                return;
++            }
++            if (offset == AIC_CPU_IPI_CLR(cpu)) {
++                aic->ipi_pending[cpu] = false;
++                apple_aic_update_irqs(aic);
++                return;
++            }
++            if (offset == AIC_CPU_IPI_MASK_SET(cpu)) {
++                aic->ipi_masked[cpu] = true;
++                apple_aic_update_irqs(aic);
++                return;
++            }
++            if (offset == AIC_CPU_IPI_MASK_CLR(cpu)) {
++                aic->ipi_masked[cpu] = false;
++                apple_aic_update_irqs(aic);
++                return;
++            }
++        }
++    }
++
++    if (aic->version >= AIC_V2 && offset == AIC2_RESET) {
++        if (value & 1) {
++            apple_aic_reset(DEVICE(aic));
++        }
++        return;
++    }
++    if (aic->version >= AIC_V2 && offset == AIC2_CONFIG) {
++        aic->config = value;
++        return;
++    }
++    if (aic_target_range(aic, offset)) {
++        aic_target_write(aic, offset, value);
++        apple_aic_update_irqs(aic);
++        return;
++    }
++    if (aic_bitvec_range(aic, aic->sw_set, offset)) {
++        aic_bitvec_write(aic->pending, aic->num_irqs, aic->sw_set, offset,
++                         value, true);
++        apple_aic_update_irqs(aic);
++        return;
++    }
++    if (aic_bitvec_range(aic, aic->sw_clr, offset)) {
++        aic_bitvec_write(aic->pending, aic->num_irqs, aic->sw_clr, offset,
++                         value, false);
++        apple_aic_update_irqs(aic);
++        return;
++    }
++    if (aic_bitvec_range(aic, aic->mask_set, offset)) {
++        aic_bitvec_write(aic->enable, aic->num_irqs, aic->mask_set, offset,
++                         value, false);
++        apple_aic_update_irqs(aic);
++        return;
++    }
++    if (aic_bitvec_range(aic, aic->mask_clr, offset)) {
++        aic_bitvec_write(aic->enable, aic->num_irqs, aic->mask_clr, offset,
++                         value, true);
++        apple_aic_update_irqs(aic);
++        return;
++    }
++}
++
++static uint64_t apple_aic_read(void *opaque, hwaddr offset, unsigned size)
++{
++    AppleAICState *aic = APPLE_AIC(opaque);
++    uint64_t value = 0;
++
++    if (size == 4) {
++        value = apple_aic_read32(aic, offset);
++    } else if (size == 8) {
++        uint64_t lo = apple_aic_read32(aic, offset);
++        uint64_t hi = apple_aic_read32(aic, offset + 4);
++        value = lo | (hi << 32);
++    }
++
++    trace_apple_aic_read(offset, size, value);
++    return value;
++}
++
++static void apple_aic_write(void *opaque, hwaddr offset, uint64_t value,
++                            unsigned size)
++{
++    AppleAICState *aic = APPLE_AIC(opaque);
++
++    trace_apple_aic_write(offset, size, value);
++
++    if (size == 4) {
++        apple_aic_write32(aic, offset, value);
++    } else if (size == 8) {
++        apple_aic_write32(aic, offset, value & 0xffffffffu);
++        apple_aic_write32(aic, offset + 4, value >> 32);
++    }
++}
++
++static void apple_aic_irq_request(void *opaque, int n, int level)
++{
+     AppleAICState *aic = opaque;
+-    aic_log("aic: interrupt %d taken (level %d)\n", n, level);
+-    if (level) aic->pending[n] = true;
++
++    trace_apple_aic_irq_request(n, level);
++
++    if (level) {
++        aic->pending[n] = true;
++    }
+     apple_aic_update_irqs(aic);
+ }
+ 
+ static const MemoryRegionOps apple_aic_ops = {
+-    .read  = apple_aic_read,
++    .read = apple_aic_read,
+     .write = apple_aic_write,
++    .endianness = DEVICE_NATIVE_ENDIAN,
++    .valid.min_access_size = 4,
++    .valid.max_access_size = 8,
++    .impl.min_access_size = 4,
++    .impl.max_access_size = 8,
+ };
+ 
+-static void apple_aic_realize(DeviceState *dev, Error **errp) {
++static void apple_aic_configure(AppleAICState *aic)
++{
++    switch (aic->version) {
++    case AIC_V1:
++        if (!aic->num_irqs) aic->num_irqs = 256;
++        if (!aic->num_cpus) aic->num_cpus = 1;
++        if (!aic->physlen) aic->physlen = 0x8000;
++        aic->info_offset = 0x0004;
++        aic->info3_offset = 0;
++        aic->whoami_offset = AIC_WHOAMI;
++        aic->event_offset = AIC_EVENT;
++        aic->target_base = 0x3000;
++        aic->target_stride = 4;
++        aic->target_is_mask = true;
++        aic->sw_set = 0x4000;
++        aic->sw_clr = 0x4080;
++        aic->mask_set = 0x4100;
++        aic->mask_clr = 0x4180;
++        aic->hw_state = 0x4200;
++        break;
++
++    case AIC_V2:
++    case AIC_V3: {
++        uint32_t max_irq;
++        uint32_t off;
++
++        if (!aic->num_irqs) aic->num_irqs = A_GOOD_NUMBER_OF_IRQS;
++        if (!aic->num_cpus) aic->num_cpus = 1;
++        aic->info_offset = AIC2_INFO1;
++        aic->info3_offset = AIC2_INFO3;
++        aic->whoami_offset = 0; /* 0x2000 is the IRQ_CFG array on v2 */
++        if (!aic->event_offset) aic->event_offset = 0xC000;
++        aic->target_base = (aic->version == AIC_V2) ? AIC2_IRQ_CFG
++                                                    : AIC3_IRQ_CFG;
++        aic->target_stride = 4;
++        aic->target_is_mask = false;
++
++        max_irq = aic->num_irqs;
++        off = aic->target_base + 4 * max_irq;
++        aic->sw_set = off;
++        off += 4 * (max_irq >> 5);
++        aic->sw_clr = off;
++        off += 4 * (max_irq >> 5);
++        aic->mask_set = off;
++        off += 4 * (max_irq >> 5);
++        aic->mask_clr = off;
++        off += 4 * (max_irq >> 5);
++        aic->hw_state = off;
++
++        if (!aic->physlen) {
++            aic->physlen = aic->event_offset + 4;
++        }
++        if (aic->physlen < aic->hw_state + 4 * (max_irq >> 5)) {
++            aic->physlen = aic->hw_state + 4 * (max_irq >> 5);
++        }
++        aic->config = 1;
++        break;
++    }
++
++    default:
++        break;
++    }
++}
++
++static void apple_aic_reset(DeviceState *dev)
++{
++    AppleAICState *aic = APPLE_AIC(dev);
++
++    if (!aic->enable) {
++        return;
++    }
++
++    for (uint32_t i = 0; i < aic->num_irqs; i++) {
++        aic->enable[i] = false;
++        aic->pending[i] = false;
++        aic->target_mask[i] = 1;
++    }
++    for (uint32_t cpu = 0; cpu < aic->num_cpus; cpu++) {
++        aic->ipi_pending[cpu] = false;
++        aic->ipi_masked[cpu] = false;
++        aic->irq_level[cpu] = false;
++        qemu_irq_lower(aic->irq_out[cpu]);
++    }
++    aic->config = (aic->version >= AIC_V2) ? 1 : 0;
++}
++
++static void apple_aic_realize(DeviceState *dev, Error **errp)
++{
      AppleAICState *aic = APPLE_AIC(dev);
  
+-    memory_region_init_io(&aic->mmio, OBJECT(dev), &apple_aic_ops, aic, TYPE_APPLE_AIC, aic->physlen);
 +    apple_aic_configure(aic);
 +
 +    if (!aic->num_irqs) {
 +        error_setg(errp, "APPLE_AIC: num-irqs must be nonzero");
++        return;
++    }
++    if (!aic->num_cpus || aic->num_cpus > AIC_MAX_CPUS) {
++        error_setg(errp, "APPLE_AIC: num-cpus must be 1..%d", AIC_MAX_CPUS);
 +        return;
 +    }
 +    if (!aic->physlen) {
@@ -457,21 +976,79 @@ index ec7a3af..d5d23bd 100644
 +        return;
 +    }
 +
-     memory_region_init_io(&aic->mmio, OBJECT(dev), &apple_aic_ops, aic, TYPE_APPLE_AIC, aic->physlen);
++    memory_region_init_io(&aic->mmio, OBJECT(dev), &apple_aic_ops, aic,
++                          TYPE_APPLE_AIC, aic->physlen);
      sysbus_init_mmio(SYS_BUS_DEVICE(dev), &aic->mmio);
  
-@@ -215,6 +288,7 @@ DeviceState *apple_aic_create(struct dtree_node *adt_node, uint64_t iobase) {
+-    aic->enable  = g_new0(bool, aic->num_irqs);
++    aic->enable = g_new0(bool, aic->num_irqs);
+     aic->pending = g_new0(bool, aic->num_irqs);
++    aic->target_mask = g_new(uint32_t, aic->num_irqs);
++    for (uint32_t i = 0; i < aic->num_irqs; i++) {
++        aic->target_mask[i] = 1;
++    }
++
++    aic->irq_out = g_new0(qemu_irq, aic->num_cpus);
++    aic->irq_level = g_new0(bool, aic->num_cpus);
++    aic->ipi_pending = g_new0(bool, aic->num_cpus);
++    aic->ipi_masked = g_new0(bool, aic->num_cpus);
+ 
+     qdev_init_gpio_in(DEVICE(aic), apple_aic_irq_request, aic->num_irqs);
+-    qdev_init_gpio_out(DEVICE(aic), &aic->irq_out, 1);
++    qdev_init_gpio_out(DEVICE(aic), aic->irq_out, aic->num_cpus);
+ }
+ 
+-static void apple_aic_class_init(ObjectClass *klass, const void *data) {
++static void apple_aic_class_init(ObjectClass *klass, const void *data)
++{
+     DeviceClass *dc = DEVICE_CLASS(klass);
++
+     dc->realize = apple_aic_realize;
++    device_class_set_legacy_reset(dc, apple_aic_reset);
+ }
+ 
+ static const TypeInfo apple_aic1_info = {
+-    .name           =  TYPE_APPLE_AIC,
+-    .parent         =  TYPE_SYS_BUS_DEVICE,
+-    .instance_size  =  sizeof(AppleAICState),
+-    .class_init     =  apple_aic_class_init,
++    .name           = TYPE_APPLE_AIC,
++    .parent         = TYPE_SYS_BUS_DEVICE,
++    .instance_size  = sizeof(AppleAICState),
++    .class_init     = apple_aic_class_init,
+ };
+ 
+-static void apple_aic_register_types(void) {
++static void apple_aic_register_types(void)
++{
+     type_register_static(&apple_aic1_info);
+ }
+ 
+ type_init(apple_aic_register_types)
+ 
+-DeviceState *apple_aic_create(struct dtree_node *adt_node, uint64_t iobase) {
++DeviceState *apple_aic_create(struct dtree_node *adt_node, uint64_t iobase,
++                              uint32_t num_cpus)
++{
      DeviceState *dev = qdev_new(TYPE_APPLE_AIC);
      AppleAICState *aic = APPLE_AIC(dev);
      struct adt_io_reg *aic_reg;
 +    u64 *iack_offset;
++    u32 *num_irqs;
  
-     assert(32 == IRQS_PER_WORD);
+-    assert(32 == IRQS_PER_WORD);
      assert(adt_node);
-@@ -228,38 +302,17 @@ DeviceState *apple_aic_create(struct dtree_node *adt_node, uint64_t iobase) {
+     aic_reg = adt_get_prop_val(adt_node, "reg");
+     assert(aic_reg);
+ 
+     aic->version = AIC_UNKNOWN;
++    aic->num_cpus = num_cpus;
+     aic->physlen = aic_reg[0].len;
+     sscanf(adt_get_prop_val(adt_node, "compatible"), "aic,%d", &aic->version);
+ 
      switch (aic->version) {
-         case AIC_V1:
-             // aic,1 must have *exactly* 8x the length of ipid-mask interrupt lines
+-        case AIC_V1:
+-            // aic,1 must have *exactly* 8x the length of ipid-mask interrupt lines
 -            aic->num_irqs        =  8 * adt_get_prop_len(adt_node, "ipid-mask");
 -            aic->has_ack_region  =  true;
 -            aic->r_iack          =  AIC1_REG_IACK;
@@ -482,10 +1059,9 @@ index ec7a3af..d5d23bd 100644
 -            aic->r_disable_size  =  AIC1_DISABLE_SIZE;
 -            aic->r_ack_base      =  AIC1_ACK_BASE;
 -            aic->r_ack_size      =  AIC1_ACK_SIZE;
-+            aic->num_irqs = 8 * adt_get_prop_len(adt_node, "ipid-mask");
-             break;
- 
-         case AIC_V2:
+-            break;
+-
+-        case AIC_V2:
 -            aic->num_irqs        =  A_GOOD_NUMBER_OF_IRQS;
 -            aic->has_ack_region  =  false;
 -            aic->r_iack          = *(u64*)adt_get_prop_val(adt_node, "aic-iack-offset");
@@ -496,7 +1072,7 @@ index ec7a3af..d5d23bd 100644
 -            aic->r_disable_size  =  AIC2_DISABLE_SIZE;
 -            break;
 -
-         case AIC_V3:
+-        case AIC_V3:
 -            aic->num_irqs        =  A_GOOD_NUMBER_OF_IRQS;
 -            aic->has_ack_region  =  false;
 -            aic->r_iack          = *(u64*)adt_get_prop_val(adt_node, "aic-iack-offset");
@@ -505,17 +1081,38 @@ index ec7a3af..d5d23bd 100644
 -            aic->r_enable_size   =  AIC3_ENABLE_SIZE;
 -            aic->r_disable_base  =  AIC3_DISABLE_BASE;
 -            aic->r_disable_size  =  AIC3_DISABLE_SIZE;
-+            iack_offset = adt_get_prop_val(adt_node, "aic-iack-offset");
-+            if (!iack_offset) {
-+                fprintf(stderr, "aic: missing aic-iack-offset\n");
-+                exit(1);
-+            }
-+            aic->r_iack = *iack_offset;
-             break;
- 
-         default:
-@@ -274,7 +327,28 @@ DeviceState *apple_aic_create(struct dtree_node *adt_node, uint64_t iobase) {
-             break;
+-            break;
+-
+-        default:
+-            // Note: you don't actually need a working aic to boot to a root
+-            // shell; all you need usually is for the aic to report that the
+-            // number of interrupts is nonzero. Proper aic support is only
+-            // needed if you want the qemuport UARTs (non-primary UARTs) to
+-            // work. uart0 doesn't use interrupts so it always works even if
+-            // the aic doesn't.
+-            fprintf(stderr, "unknown aic version %d\n", aic->version);
++    case AIC_V1:
++        aic->num_irqs = 8 * adt_get_prop_len(adt_node, "ipid-mask");
++        break;
++
++    case AIC_V2:
++    case AIC_V3:
++        iack_offset = adt_get_prop_val(adt_node, "aic-iack-offset");
++        if (!iack_offset) {
++            fprintf(stderr, "aic: missing aic-iack-offset\n");
+             exit(1);
+-            break;
++        }
++        aic->event_offset = *iack_offset;
++        num_irqs = adt_get_prop_val(adt_node, "num-irqs");
++        if (num_irqs) {
++            aic->num_irqs = *num_irqs;
++        }
++        break;
++
++    default:
++        fprintf(stderr, "unknown aic version %d\n", aic->version);
++        exit(1);
      }
  
 +    apple_aic_configure(aic);
@@ -526,17 +1123,17 @@ index ec7a3af..d5d23bd 100644
  }
 +
 +DeviceState *apple_aic_create_simple(uint32_t version, uint32_t num_irqs,
-+                                     uint64_t physlen, uint64_t iack_offset,
-+                                     bool has_ack_region)
++                                     uint32_t num_cpus, uint64_t physlen,
++                                     uint64_t iack_offset)
 +{
 +    DeviceState *dev = qdev_new(TYPE_APPLE_AIC);
 +    AppleAICState *aic = APPLE_AIC(dev);
 +
 +    aic->version = version;
 +    aic->num_irqs = num_irqs;
++    aic->num_cpus = num_cpus;
 +    aic->physlen = physlen;
-+    aic->r_iack = iack_offset;
-+    aic->has_ack_region = has_ack_region;
++    aic->event_offset = iack_offset;
 +
 +    apple_aic_configure(aic);
 +
@@ -544,10 +1141,10 @@ index ec7a3af..d5d23bd 100644
 +    return dev;
 +}
 diff --git a/hw/intc/trace-events b/hw/intc/trace-events
-index e7d6c30..137a97d 100644
+index e7d6c30..3af64df 100644
 --- a/hw/intc/trace-events
 +++ b/hw/intc/trace-events
-@@ -1,5 +1,15 @@
+@@ -1,5 +1,20 @@
  # See docs/devel/tracing.rst for syntax documentation.
  
 +# apple_aic.c
@@ -559,33 +1156,44 @@ index e7d6c30..137a97d 100644
 +apple_aic_enable(uint32_t irq) "irq=%"PRIu32
 +apple_aic_disable(uint32_t irq) "irq=%"PRIu32
 +apple_aic_ack(uint32_t irq) "irq=%"PRIu32
++apple_aic_target(uint32_t irq, uint32_t mask) "irq=%"PRIu32" mask=0x%"PRIx32
++apple_aic_ipi_send(uint32_t cpu) "cpu=%"PRIu32
++apple_aic_ipi_ack(uint32_t cpu) "cpu=%"PRIu32
++apple_aic_ipi_event(uint32_t cpu) "cpu=%"PRIu32
++apple_aic_ipi_raise(uint32_t cpu) "cpu=%"PRIu32
 +
  # i8259.c
  pic_update_irq(bool master, uint8_t imr, uint8_t irr, uint8_t padd) "master %d imr %"PRIu8" irr %"PRIu8" padd %"PRIu8
  pic_set_irq(bool master, int irq, int level) "master %d irq %d level %d"
 diff --git a/include/hw/intc/apple_aic.h b/include/hw/intc/apple_aic.h
-index 04df723..5b4f113 100644
+index 04df723..1fd1988 100644
 --- a/include/hw/intc/apple_aic.h
 +++ b/include/hw/intc/apple_aic.h
-@@ -12,3 +12,6 @@ typedef enum {
+@@ -11,4 +11,8 @@ typedef enum {
+     AIC_V3 = 3,
  } aic_version_t;
  
- DeviceState *apple_aic_create(struct dtree_node *aic_node, uint64_t iobase);
+-DeviceState *apple_aic_create(struct dtree_node *aic_node, uint64_t iobase);
++DeviceState *apple_aic_create(struct dtree_node *aic_node, uint64_t iobase,
++                              uint32_t num_cpus);
 +DeviceState *apple_aic_create_simple(uint32_t version, uint32_t num_irqs,
-+                                     uint64_t physlen, uint64_t iack_offset,
-+                                     bool has_ack_region);
++                                     uint32_t num_cpus, uint64_t physlen,
++                                     uint64_t iack_offset);
 diff --git a/tests/qtest/apple-aic-test.c b/tests/qtest/apple-aic-test.c
 new file mode 100644
-index 0000000..3aa0704
+index 0000000..3f1fc30
 --- /dev/null
 +++ b/tests/qtest/apple-aic-test.c
-@@ -0,0 +1,150 @@
+@@ -0,0 +1,222 @@
 +#include "qemu/osdep.h"
 +#include "libqtest.h"
 +
 +#define CTRL_BASE       0x20020000
 +#define CTRL_SET        0x0
 +#define CTRL_CLEAR      0x4
++
++#define AIC_IPI_SEND    0x2008
++#define AIC_IPI_ACK     0x200c
 +
 +typedef struct AicConfig {
 +    const char *machine;
@@ -594,7 +1202,10 @@ index 0000000..3aa0704
 +    uint32_t iack;
 +    uint32_t enable_base;
 +    uint32_t disable_base;
-+    uint32_t ack_base;      /* 0 means IACK clears pending directly */
++    uint32_t hw_state_base;
++    uint32_t target_base;
++    bool target_is_mask;
++    uint32_t target_value;
 +    uint32_t num_irqs;
 +    uint32_t uart_irq;
 +} AicConfig;
@@ -606,7 +1217,10 @@ index 0000000..3aa0704
 +    .iack = 0x2004,
 +    .enable_base = 0x4180,
 +    .disable_base = 0x4100,
-+    .ack_base = 0x4080,
++    .hw_state_base = 0x4200,
++    .target_base = 0x3000,
++    .target_is_mask = true,
++    .target_value = 2, /* BIT(1) */
 +    .num_irqs = 256,
 +    .uart_irq = 100,
 +};
@@ -618,7 +1232,10 @@ index 0000000..3aa0704
 +    .iack = 0xC000,
 +    .enable_base = 0x6600,
 +    .disable_base = 0x6400,
-+    .ack_base = 0,
++    .hw_state_base = 0x6800,
++    .target_base = 0x2000,
++    .target_is_mask = false,
++    .target_value = 1, /* CPU index 1 */
 +    .num_irqs = 4096,
 +    .uart_irq = 1097,
 +};
@@ -635,15 +1252,7 @@ index 0000000..3aa0704
 +
 +static QTestState *aic_qtest(const AicConfig *cfg)
 +{
-+    return qtest_initf("-M %s -m 128M", cfg->machine);
-+}
-+
-+static void aic_ack(QTestState *qts, const AicConfig *cfg, uint32_t irq)
-+{
-+    if (cfg->ack_base) {
-+        qtest_writel(qts, cfg->aic_base + bit_off(cfg->ack_base, irq),
-+                     bit_val(irq));
-+    }
++    return qtest_initf("-M %s -smp 2 -m 128M", cfg->machine);
 +}
 +
 +static void test_num_ints(gconstpointer data)
@@ -652,6 +1261,16 @@ index 0000000..3aa0704
 +    QTestState *qts = aic_qtest(cfg);
 +
 +    g_assert_cmpuint(qtest_readl(qts, cfg->aic_base + cfg->num_ints_reg), ==,
++                     cfg->num_irqs);
++    qtest_quit(qts);
++}
++
++static void test_readq_num_ints(gconstpointer data)
++{
++    const AicConfig *cfg = data;
++    QTestState *qts = aic_qtest(cfg);
++
++    g_assert_cmpuint(qtest_readq(qts, cfg->aic_base + cfg->num_ints_reg), ==,
 +                     cfg->num_irqs);
 +    qtest_quit(qts);
 +}
@@ -668,8 +1287,6 @@ index 0000000..3aa0704
 +
 +    g_assert_cmpuint(qtest_readl(qts, cfg->aic_base + cfg->iack), ==,
 +                     irq | 0x10000);
-+
-+    aic_ack(qts, cfg, irq);
 +    g_assert_cmpuint(qtest_readl(qts, cfg->aic_base + cfg->iack), ==, 0);
 +
 +    qtest_writel(qts, CTRL_BASE + CTRL_CLEAR, irq);
@@ -695,8 +1312,59 @@ index 0000000..3aa0704
 +    qtest_writel(qts, CTRL_BASE + CTRL_SET, irq);
 +    g_assert_cmpuint(qtest_readl(qts, cfg->aic_base + cfg->iack), ==,
 +                     irq | 0x10000);
-+    aic_ack(qts, cfg, irq);
 +    qtest_writel(qts, CTRL_BASE + CTRL_CLEAR, irq);
++
++    qtest_quit(qts);
++}
++
++static void test_hw_state(gconstpointer data)
++{
++    const AicConfig *cfg = data;
++    uint32_t irq = cfg->uart_irq;
++    QTestState *qts = aic_qtest(cfg);
++
++    qtest_writel(qts, cfg->aic_base + bit_off(cfg->enable_base, irq),
++                 bit_val(irq));
++    qtest_writel(qts, CTRL_BASE + CTRL_SET, irq);
++
++    g_assert_cmpuint(qtest_readl(qts,
++                     cfg->aic_base + bit_off(cfg->hw_state_base, irq)), ==,
++                     bit_val(irq));
++
++    qtest_readl(qts, cfg->aic_base + cfg->iack);
++    g_assert_cmpuint(qtest_readl(qts,
++                     cfg->aic_base + bit_off(cfg->hw_state_base, irq)), ==, 0);
++
++    qtest_writel(qts, CTRL_BASE + CTRL_CLEAR, irq);
++    qtest_quit(qts);
++}
++
++static void test_target(gconstpointer data)
++{
++    const AicConfig *cfg = data;
++    uint32_t irq = cfg->uart_irq;
++    QTestState *qts = aic_qtest(cfg);
++
++    qtest_writel(qts, cfg->aic_base + cfg->target_base + irq * 4,
++                 cfg->target_value);
++    g_assert_cmpuint(qtest_readl(qts,
++                     cfg->aic_base + cfg->target_base + irq * 4), ==,
++                     cfg->target_value);
++
++    qtest_quit(qts);
++}
++
++static void test_ipi_v1(gconstpointer data)
++{
++    const AicConfig *cfg = data;
++    QTestState *qts = aic_qtest(cfg);
++
++    qtest_writel(qts, cfg->aic_base + AIC_IPI_SEND, 1); /* self IPI, CPU0 */
++    g_assert_cmpuint(qtest_readl(qts, cfg->aic_base + cfg->iack), ==,
++                     0x40001); /* type IPI, num OTHER */
++
++    qtest_writel(qts, cfg->aic_base + AIC_IPI_ACK, 1);
++    g_assert_cmpuint(qtest_readl(qts, cfg->aic_base + cfg->iack), ==, 0);
 +
 +    qtest_quit(qts);
 +}
@@ -715,16 +1383,25 @@ index 0000000..3aa0704
 +    g_test_init(&argc, &argv, NULL);
 +
 +    qtest_add_data_func("/apple-aic/v1/num-ints", &aic_v1, test_num_ints);
++    qtest_add_data_func("/apple-aic/v1/readq-num-ints", &aic_v1,
++                        test_readq_num_ints);
 +    qtest_add_data_func("/apple-aic/v1/enable-raise-ack", &aic_v1,
 +                        test_enable_raise_ack);
 +    qtest_add_data_func("/apple-aic/v1/mask", &aic_v1, test_mask);
++    qtest_add_data_func("/apple-aic/v1/hw-state", &aic_v1, test_hw_state);
++    qtest_add_data_func("/apple-aic/v1/target", &aic_v1, test_target);
++    qtest_add_data_func("/apple-aic/v1/ipi", &aic_v1, test_ipi_v1);
 +    qtest_add_data_func("/apple-aic/v1/unknown-register", &aic_v1,
 +                        test_unknown_register);
 +
 +    qtest_add_data_func("/apple-aic/v2/num-ints", &aic_v2, test_num_ints);
++    qtest_add_data_func("/apple-aic/v2/readq-num-ints", &aic_v2,
++                        test_readq_num_ints);
 +    qtest_add_data_func("/apple-aic/v2/enable-raise-ack", &aic_v2,
 +                        test_enable_raise_ack);
 +    qtest_add_data_func("/apple-aic/v2/mask", &aic_v2, test_mask);
++    qtest_add_data_func("/apple-aic/v2/hw-state", &aic_v2, test_hw_state);
++    qtest_add_data_func("/apple-aic/v2/target", &aic_v2, test_target);
 +    qtest_add_data_func("/apple-aic/v2/unknown-register", &aic_v2,
 +                        test_unknown_register);
 +

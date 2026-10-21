@@ -77,7 +77,7 @@ python3 run_payload.py --board v2
 Expected v2 serial output:
 
 ```text
-M0 AIC payload board=qemu-v2
+AIC payload board=qemu-v2
 CurrentEL=0x00000001
 AIC version=0x00000002 num_ints=0x00001000
 UART: enable irq 0x00000449

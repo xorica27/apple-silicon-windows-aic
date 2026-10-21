@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the M0 AIC payload on the QEMU apple-aic test machines."""
+"""Run the AIC payload on the QEMU apple-aic test machines."""
 
 import argparse
 import os
@@ -14,8 +14,8 @@ DEFAULT_QEMU = Path("/tmp/qemu-m0-build/qemu-system-aarch64")
 DEFAULT_LOG = ROOT / "trace" / "payload-run.log"
 
 BOARDS = {
-    "v1": ("apple-aic-test", "payload-v1.elf"),
-    "v2": ("apple-aic-v2-test", "payload-v2.elf"),
+    "v1": ("apple-aic-test", "payload-v1.elf", 2),
+    "v2": ("apple-aic-v2-test", "payload-v2.elf", 1),
 }
 
 
@@ -32,7 +32,7 @@ def main() -> int:
                         help="write AIC trace to this file instead of stderr")
     args = parser.parse_args()
 
-    machine, default_payload = BOARDS[args.board]
+    machine, default_payload, smp = BOARDS[args.board]
     payload = args.payload or str(ROOT / "payload" / default_payload)
 
     if not Path(args.qemu).is_file():
@@ -45,6 +45,7 @@ def main() -> int:
     cmd = [
         args.qemu,
         "-M", machine,
+        "-smp", str(smp),
         "-m", "128M",
         "-nographic",
         "-device", f"loader,file={payload},cpu-num=0",
