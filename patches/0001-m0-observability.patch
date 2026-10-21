@@ -15,10 +15,10 @@ index 82e0bc2..7b790e0 100644
      default y
 diff --git a/hw/arm/apple_aic_test.c b/hw/arm/apple_aic_test.c
 new file mode 100644
-index 0000000..b979246
+index 0000000..39143f2
 --- /dev/null
 +++ b/hw/arm/apple_aic_test.c
-@@ -0,0 +1,142 @@
+@@ -0,0 +1,229 @@
 +#include "qemu/osdep.h"
 +#include "qapi/error.h"
 +#include "hw/arm/boot.h"
@@ -32,26 +32,68 @@ index 0000000..b979246
 +#include "target/arm/cpu.h"
 +
 +#define TYPE_APPLE_AIC_TEST_MACHINE MACHINE_TYPE_NAME("apple-aic-test")
++#define TYPE_APPLE_AIC_V2_TEST_MACHINE MACHINE_TYPE_NAME("apple-aic-v2-test")
 +OBJECT_DECLARE_SIMPLE_TYPE(AppleAICTestState, APPLE_AIC_TEST_MACHINE)
 +
 +#define APPLE_AIC_TEST_RAM_BASE     0x40000000
-+#define APPLE_AIC_TEST_AIC_BASE     0x20000000
-+#define APPLE_AIC_TEST_UART_BASE    0x20010000
 +#define APPLE_AIC_TEST_CTRL_BASE    0x20020000
 +#define APPLE_AIC_TEST_CTRL_SIZE    0x1000
-+#define APPLE_AIC_TEST_NUM_IRQS     256
-+#define APPLE_AIC_TEST_UART_IRQ     100
-+#define APPLE_AIC_TEST_TIMER_IRQ    27
 +
 +#define APPLE_AIC_TEST_CTRL_SET     0x0
 +#define APPLE_AIC_TEST_CTRL_CLEAR   0x4
++
++typedef struct AppleAICTestVariant {
++    uint32_t aic_version;
++    uint32_t num_irqs;
++    uint64_t aic_physlen;
++    uint64_t iack_offset;
++    bool has_ack_region;
++    uint64_t aic_base;
++    uint64_t uart_base;
++    uint32_t uart_irq;
++    bool timer_fiq;
++    uint32_t timer_irq;
++} AppleAICTestVariant;
++
++static const AppleAICTestVariant apple_aic_v1_variant = {
++    .aic_version = AIC_V1,
++    .num_irqs = 256,
++    .aic_physlen = 0x8000,
++    .iack_offset = 0x2004,
++    .has_ack_region = true,
++    .aic_base = 0x20000000,
++    .uart_base = 0x20010000,
++    .uart_irq = 100,
++    .timer_fiq = false,
++    .timer_irq = 27,
++};
++
++/*
++ * M1 Pro (t600x) layout: AIC v2 at 0x28e100000, event/IACK at +0xc000,
++ * enable 0x6600, disable 0x6400. UART0 at 0x39b200000, AIC IRQ 1097.
++ * The real timer is FIQ, not an AIC line.
++ */
++static const AppleAICTestVariant apple_aic_v2_variant = {
++    .aic_version = AIC_V2,
++    .num_irqs = 4096,
++    .aic_physlen = 0x50000,
++    .iack_offset = 0xC000,
++    .has_ack_region = false,
++    .aic_base = 0x28E100000,
++    .uart_base = 0x39B200000,
++    .uart_irq = 1097,
++    .timer_fiq = true,
++    .timer_irq = 0,
++};
 +
 +struct AppleAICTestState {
 +    MachineState parent_obj;
 +    ARMCPU *cpu;
 +    DeviceState *aic;
-+    qemu_irq aic_in[APPLE_AIC_TEST_NUM_IRQS];
++    qemu_irq *aic_in;
++    uint32_t num_irqs;
 +    MemoryRegion ctrl;
++    const AppleAICTestVariant *variant;
 +};
 +
 +static uint64_t apple_aic_test_ctrl_read(void *opaque, hwaddr offset,
@@ -65,7 +107,7 @@ index 0000000..b979246
 +{
 +    AppleAICTestState *s = opaque;
 +
-+    if (value >= APPLE_AIC_TEST_NUM_IRQS) {
++    if (value >= s->num_irqs) {
 +        return;
 +    }
 +
@@ -87,13 +129,17 @@ index 0000000..b979246
 +    .endianness = DEVICE_NATIVE_ENDIAN,
 +};
 +
-+static void apple_aic_test_init(MachineState *ms)
++static void apple_aic_test_init(MachineState *ms,
++                                const AppleAICTestVariant *variant)
 +{
 +    AppleAICTestState *s = APPLE_AIC_TEST_MACHINE(ms);
 +    MemoryRegion *ram = g_new(MemoryRegion, 1);
 +    Object *cpuobj;
 +    DeviceState *cpudev;
-+    int i;
++    uint32_t i;
++
++    s->variant = variant;
++    s->num_irqs = variant->num_irqs;
 +
 +    memory_region_init_ram(ram, NULL, "apple-aic-test.ram", ms->ram_size,
 +                           &error_fatal);
@@ -109,11 +155,13 @@ index 0000000..b979246
 +    unset_feature(&s->cpu->env, ARM_FEATURE_EL3);
 +    s->cpu->gt_cntfrq_hz = 24000000;
 +
-+    s->aic = apple_aic_create_simple(AIC_V1, APPLE_AIC_TEST_NUM_IRQS,
-+                                     0x8000, 0x2004, true);
-+    sysbus_mmio_map(SYS_BUS_DEVICE(s->aic), 0, APPLE_AIC_TEST_AIC_BASE);
++    s->aic = apple_aic_create_simple(variant->aic_version, variant->num_irqs,
++                                     variant->aic_physlen, variant->iack_offset,
++                                     variant->has_ack_region);
++    sysbus_mmio_map(SYS_BUS_DEVICE(s->aic), 0, variant->aic_base);
 +
-+    for (i = 0; i < APPLE_AIC_TEST_NUM_IRQS; i++) {
++    s->aic_in = g_new0(qemu_irq, s->num_irqs);
++    for (i = 0; i < s->num_irqs; i++) {
 +        s->aic_in[i] = qdev_get_gpio_in(s->aic, i);
 +    }
 +
@@ -122,20 +170,43 @@ index 0000000..b979246
 +    memory_region_add_subregion(get_system_memory(), APPLE_AIC_TEST_CTRL_BASE,
 +                                &s->ctrl);
 +
-+    pl011_create(APPLE_AIC_TEST_UART_BASE, s->aic_in[APPLE_AIC_TEST_UART_IRQ],
++    pl011_create(variant->uart_base, s->aic_in[variant->uart_irq],
 +                 serial_hd(0));
 +
 +    qdev_realize(cpudev, NULL, &error_fatal);
 +
-+    qdev_connect_gpio_out(cpudev, GTIMER_PHYS,
-+                          s->aic_in[APPLE_AIC_TEST_TIMER_IRQ]);
++    if (variant->timer_fiq) {
++        qdev_connect_gpio_out(cpudev, GTIMER_PHYS,
++                              qdev_get_gpio_in(cpudev, ARM_CPU_FIQ));
++    } else {
++        qdev_connect_gpio_out(cpudev, GTIMER_PHYS,
++                              s->aic_in[variant->timer_irq]);
++    }
 +    qdev_connect_gpio_out(s->aic, 0, qdev_get_gpio_in(cpudev, ARM_CPU_IRQ));
++}
++
++static void apple_aic_v1_init(MachineState *ms)
++{
++    apple_aic_test_init(ms, &apple_aic_v1_variant);
++}
++
++static void apple_aic_v2_init(MachineState *ms)
++{
++    apple_aic_test_init(ms, &apple_aic_v2_variant);
 +}
 +
 +static void apple_aic_test_machine_init(MachineClass *mc)
 +{
-+    mc->desc = "Apple AIC test machine";
-+    mc->init = apple_aic_test_init;
++    mc->desc = "Apple AIC v1 test machine";
++    mc->init = apple_aic_v1_init;
++    mc->max_cpus = 1;
++    mc->default_cpu_type = ARM_CPU_TYPE_NAME("max");
++}
++
++static void apple_aic_v2_test_machine_init(MachineClass *mc)
++{
++    mc->desc = "Apple AIC v2 test machine (M1 Pro layout)";
++    mc->init = apple_aic_v2_init;
 +    mc->max_cpus = 1;
 +    mc->default_cpu_type = ARM_CPU_TYPE_NAME("max");
 +}
@@ -147,6 +218,14 @@ index 0000000..b979246
 +    apple_aic_test_machine_init(mc);
 +}
 +
++static void apple_aic_v2_test_machine_class_init(ObjectClass *oc,
++                                                 const void *data)
++{
++    MachineClass *mc = MACHINE_CLASS(oc);
++
++    apple_aic_v2_test_machine_init(mc);
++}
++
 +static const TypeInfo apple_aic_test_machine_typeinfo = {
 +    .name = TYPE_APPLE_AIC_TEST_MACHINE,
 +    .parent = TYPE_MACHINE,
@@ -155,9 +234,17 @@ index 0000000..b979246
 +    .interfaces = arm_machine_interfaces,
 +};
 +
++static const TypeInfo apple_aic_v2_test_machine_typeinfo = {
++    .name = TYPE_APPLE_AIC_V2_TEST_MACHINE,
++    .parent = TYPE_APPLE_AIC_TEST_MACHINE,
++    .class_init = apple_aic_v2_test_machine_class_init,
++    .instance_size = sizeof(AppleAICTestState),
++};
++
 +static void apple_aic_test_register_types(void)
 +{
 +    type_register_static(&apple_aic_test_machine_typeinfo);
++    type_register_static(&apple_aic_v2_test_machine_typeinfo);
 +}
 +
 +type_init(apple_aic_test_register_types)
@@ -489,27 +576,52 @@ index 04df723..5b4f113 100644
 +                                     bool has_ack_region);
 diff --git a/tests/qtest/apple-aic-test.c b/tests/qtest/apple-aic-test.c
 new file mode 100644
-index 0000000..5ab9078
+index 0000000..3aa0704
 --- /dev/null
 +++ b/tests/qtest/apple-aic-test.c
-@@ -0,0 +1,103 @@
+@@ -0,0 +1,150 @@
 +#include "qemu/osdep.h"
 +#include "libqtest.h"
 +
-+#define AIC_BASE        0x20000000
 +#define CTRL_BASE       0x20020000
-+#define NUM_IRQS        256
-+#define UART_IRQ        100
-+#define TIMER_IRQ       27
-+
-+#define AIC_NUM_INTS    0x4
-+#define AIC_IACK        0x2004
-+#define AIC_ACK_BASE    0x4080
-+#define AIC_DISABLE_BASE 0x4100
-+#define AIC_ENABLE_BASE 0x4180
-+
 +#define CTRL_SET        0x0
 +#define CTRL_CLEAR      0x4
++
++typedef struct AicConfig {
++    const char *machine;
++    uint64_t aic_base;
++    uint32_t num_ints_reg;
++    uint32_t iack;
++    uint32_t enable_base;
++    uint32_t disable_base;
++    uint32_t ack_base;      /* 0 means IACK clears pending directly */
++    uint32_t num_irqs;
++    uint32_t uart_irq;
++} AicConfig;
++
++static const AicConfig aic_v1 = {
++    .machine = "apple-aic-test",
++    .aic_base = 0x20000000,
++    .num_ints_reg = 0x4,
++    .iack = 0x2004,
++    .enable_base = 0x4180,
++    .disable_base = 0x4100,
++    .ack_base = 0x4080,
++    .num_irqs = 256,
++    .uart_irq = 100,
++};
++
++static const AicConfig aic_v2 = {
++    .machine = "apple-aic-v2-test",
++    .aic_base = 0x28E100000,
++    .num_ints_reg = 0x0C,
++    .iack = 0xC000,
++    .enable_base = 0x6600,
++    .disable_base = 0x6400,
++    .ack_base = 0,
++    .num_irqs = 4096,
++    .uart_irq = 1097,
++};
 +
 +static inline uint32_t bit_off(uint32_t base, uint32_t irq)
 +{
@@ -521,67 +633,80 @@ index 0000000..5ab9078
 +    return 1u << (irq % 32);
 +}
 +
-+static QTestState *aic_qtest(void)
++static QTestState *aic_qtest(const AicConfig *cfg)
 +{
-+    return qtest_init("-M apple-aic-test -m 128M");
++    return qtest_initf("-M %s -m 128M", cfg->machine);
 +}
 +
-+static void test_num_ints(void)
++static void aic_ack(QTestState *qts, const AicConfig *cfg, uint32_t irq)
 +{
-+    QTestState *qts = aic_qtest();
++    if (cfg->ack_base) {
++        qtest_writel(qts, cfg->aic_base + bit_off(cfg->ack_base, irq),
++                     bit_val(irq));
++    }
++}
 +
-+    g_assert_cmpuint(qtest_readl(qts, AIC_BASE + AIC_NUM_INTS), ==, NUM_IRQS);
++static void test_num_ints(gconstpointer data)
++{
++    const AicConfig *cfg = data;
++    QTestState *qts = aic_qtest(cfg);
++
++    g_assert_cmpuint(qtest_readl(qts, cfg->aic_base + cfg->num_ints_reg), ==,
++                     cfg->num_irqs);
 +    qtest_quit(qts);
 +}
 +
-+static void test_enable_raise_ack(void)
++static void test_enable_raise_ack(gconstpointer data)
 +{
-+    QTestState *qts = aic_qtest();
++    const AicConfig *cfg = data;
++    uint32_t irq = cfg->uart_irq;
++    QTestState *qts = aic_qtest(cfg);
 +
-+    qtest_writel(qts, AIC_BASE + bit_off(AIC_ENABLE_BASE, UART_IRQ),
-+                 bit_val(UART_IRQ));
-+    qtest_writel(qts, CTRL_BASE + CTRL_SET, UART_IRQ);
++    qtest_writel(qts, cfg->aic_base + bit_off(cfg->enable_base, irq),
++                 bit_val(irq));
++    qtest_writel(qts, CTRL_BASE + CTRL_SET, irq);
 +
-+    g_assert_cmpuint(qtest_readl(qts, AIC_BASE + AIC_IACK), ==,
-+                     UART_IRQ | 0x10000);
++    g_assert_cmpuint(qtest_readl(qts, cfg->aic_base + cfg->iack), ==,
++                     irq | 0x10000);
 +
-+    qtest_writel(qts, AIC_BASE + bit_off(AIC_ACK_BASE, UART_IRQ),
-+                 bit_val(UART_IRQ));
-+    g_assert_cmpuint(qtest_readl(qts, AIC_BASE + AIC_IACK), ==, 0);
++    aic_ack(qts, cfg, irq);
++    g_assert_cmpuint(qtest_readl(qts, cfg->aic_base + cfg->iack), ==, 0);
 +
-+    qtest_writel(qts, CTRL_BASE + CTRL_CLEAR, UART_IRQ);
++    qtest_writel(qts, CTRL_BASE + CTRL_CLEAR, irq);
 +    qtest_quit(qts);
 +}
 +
-+static void test_mask(void)
++static void test_mask(gconstpointer data)
 +{
-+    QTestState *qts = aic_qtest();
++    const AicConfig *cfg = data;
++    uint32_t irq = cfg->uart_irq;
++    QTestState *qts = aic_qtest(cfg);
 +
-+    qtest_writel(qts, AIC_BASE + bit_off(AIC_ENABLE_BASE, TIMER_IRQ),
-+                 bit_val(TIMER_IRQ));
-+    qtest_writel(qts, AIC_BASE + bit_off(AIC_DISABLE_BASE, TIMER_IRQ),
-+                 bit_val(TIMER_IRQ));
-+    qtest_writel(qts, CTRL_BASE + CTRL_SET, TIMER_IRQ);
-+    g_assert_cmpuint(qtest_readl(qts, AIC_BASE + AIC_IACK), ==, 0);
-+    qtest_writel(qts, CTRL_BASE + CTRL_CLEAR, TIMER_IRQ);
++    qtest_writel(qts, cfg->aic_base + bit_off(cfg->enable_base, irq),
++                 bit_val(irq));
++    qtest_writel(qts, cfg->aic_base + bit_off(cfg->disable_base, irq),
++                 bit_val(irq));
++    qtest_writel(qts, CTRL_BASE + CTRL_SET, irq);
++    g_assert_cmpuint(qtest_readl(qts, cfg->aic_base + cfg->iack), ==, 0);
++    qtest_writel(qts, CTRL_BASE + CTRL_CLEAR, irq);
 +
-+    qtest_writel(qts, AIC_BASE + bit_off(AIC_ENABLE_BASE, TIMER_IRQ),
-+                 bit_val(TIMER_IRQ));
-+    qtest_writel(qts, CTRL_BASE + CTRL_SET, TIMER_IRQ);
-+    g_assert_cmpuint(qtest_readl(qts, AIC_BASE + AIC_IACK), ==,
-+                     TIMER_IRQ | 0x10000);
-+    qtest_writel(qts, AIC_BASE + bit_off(AIC_ACK_BASE, TIMER_IRQ),
-+                 bit_val(TIMER_IRQ));
-+    qtest_writel(qts, CTRL_BASE + CTRL_CLEAR, TIMER_IRQ);
++    qtest_writel(qts, cfg->aic_base + bit_off(cfg->enable_base, irq),
++                 bit_val(irq));
++    qtest_writel(qts, CTRL_BASE + CTRL_SET, irq);
++    g_assert_cmpuint(qtest_readl(qts, cfg->aic_base + cfg->iack), ==,
++                     irq | 0x10000);
++    aic_ack(qts, cfg, irq);
++    qtest_writel(qts, CTRL_BASE + CTRL_CLEAR, irq);
 +
 +    qtest_quit(qts);
 +}
 +
-+static void test_unknown_register(void)
++static void test_unknown_register(gconstpointer data)
 +{
-+    QTestState *qts = aic_qtest();
++    const AicConfig *cfg = data;
++    QTestState *qts = aic_qtest(cfg);
 +
-+    g_assert_cmpuint(qtest_readl(qts, AIC_BASE + 0x1234), ==, 0);
++    g_assert_cmpuint(qtest_readl(qts, cfg->aic_base + 0x1234), ==, 0);
 +    qtest_quit(qts);
 +}
 +
@@ -589,10 +714,19 @@ index 0000000..5ab9078
 +{
 +    g_test_init(&argc, &argv, NULL);
 +
-+    qtest_add_func("/apple-aic/num-ints", test_num_ints);
-+    qtest_add_func("/apple-aic/enable-raise-ack", test_enable_raise_ack);
-+    qtest_add_func("/apple-aic/mask", test_mask);
-+    qtest_add_func("/apple-aic/unknown-register", test_unknown_register);
++    qtest_add_data_func("/apple-aic/v1/num-ints", &aic_v1, test_num_ints);
++    qtest_add_data_func("/apple-aic/v1/enable-raise-ack", &aic_v1,
++                        test_enable_raise_ack);
++    qtest_add_data_func("/apple-aic/v1/mask", &aic_v1, test_mask);
++    qtest_add_data_func("/apple-aic/v1/unknown-register", &aic_v1,
++                        test_unknown_register);
++
++    qtest_add_data_func("/apple-aic/v2/num-ints", &aic_v2, test_num_ints);
++    qtest_add_data_func("/apple-aic/v2/enable-raise-ack", &aic_v2,
++                        test_enable_raise_ack);
++    qtest_add_data_func("/apple-aic/v2/mask", &aic_v2, test_mask);
++    qtest_add_data_func("/apple-aic/v2/unknown-register", &aic_v2,
++                        test_unknown_register);
 +
 +    return g_test_run();
 +}

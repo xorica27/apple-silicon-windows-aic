@@ -1,0 +1,62 @@
+#pragma once
+
+#define BOARD_QEMU_V1 1
+#define BOARD_QEMU_V2 2
+#define BOARD_M1PRO   3
+
+#ifndef BOARD
+#define BOARD BOARD_QEMU_V1
+#endif
+
+#if BOARD == BOARD_QEMU_V1
+#define BOARD_NAME "qemu-v1"
+#define AIC_VERSION 1
+#define AIC_BASE 0x20000000UL
+#define AIC_NUM_INTS 0x0004
+#define AIC_IACK 0x2004
+#define AIC_ENABLE_BASE 0x4180
+#define AIC_DISABLE_BASE 0x4100
+#define AIC_ACK_BASE 0x4080
+#define AIC_HAS_ACK_REGION 1
+#define AIC_TIMER_IRQ 27
+#define TIMER_FIQ 0
+#define UART_KIND_PL011 1
+#define UART_BASE 0x20010000UL
+#define UART_IRQ 100
+
+#elif BOARD == BOARD_QEMU_V2
+#define BOARD_NAME "qemu-v2"
+#define AIC_VERSION 2
+#define AIC_BASE 0x28E100000UL
+#define AIC_NUM_INTS 0x000C
+#define AIC_IACK 0xC000
+#define AIC_ENABLE_BASE 0x6600
+#define AIC_DISABLE_BASE 0x6400
+#define AIC_ACK_BASE 0
+#define AIC_HAS_ACK_REGION 0
+#define AIC_TIMER_IRQ 0
+#define TIMER_FIQ 1
+#define UART_KIND_PL011 1
+#define UART_BASE 0x39B200000UL
+#define UART_IRQ 1097
+
+#elif BOARD == BOARD_M1PRO
+#define BOARD_NAME "m1pro-t600x"
+#define AIC_VERSION 2
+#define AIC_BASE 0x28E100000UL
+#define AIC_NUM_INTS 0x000C
+#define AIC_IACK 0xC000
+#define AIC_ENABLE_BASE 0x6600
+#define AIC_DISABLE_BASE 0x6400
+#define AIC_ACK_BASE 0
+#define AIC_HAS_ACK_REGION 0
+#define AIC_TIMER_IRQ 0
+#define TIMER_FIQ 1
+#define UART_KIND_APPLE 1
+#define UART_BASE 0x39B200000UL
+#define UART_IRQ 1097
+#define PMGR_EAST_BASE 0x28E580000UL
+
+#else
+#error "unknown BOARD"
+#endif

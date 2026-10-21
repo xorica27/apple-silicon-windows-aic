@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the M0 AIC payload on the QEMU apple-aic-test machine."""
+"""Run the M0 AIC payload on the QEMU apple-aic test machines."""
 
 import argparse
 import os
@@ -11,14 +11,19 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 DEFAULT_QEMU = Path("/tmp/qemu-m0-build/qemu-system-aarch64")
-DEFAULT_PAYLOAD = ROOT / "payload" / "payload.elf"
 DEFAULT_LOG = ROOT / "trace" / "payload-run.log"
+
+BOARDS = {
+    "v1": ("apple-aic-test", "payload-v1.elf"),
+    "v2": ("apple-aic-v2-test", "payload-v2.elf"),
+}
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--board", choices=sorted(BOARDS), default="v1")
     parser.add_argument("--qemu", default=os.environ.get("QEMU", str(DEFAULT_QEMU)))
-    parser.add_argument("--payload", default=str(DEFAULT_PAYLOAD))
+    parser.add_argument("--payload", default="")
     parser.add_argument("--timeout", type=float, default=20.0)
     parser.add_argument("--log", default=str(DEFAULT_LOG))
     parser.add_argument("--trace", action="store_true",
@@ -27,19 +32,22 @@ def main() -> int:
                         help="write AIC trace to this file instead of stderr")
     args = parser.parse_args()
 
+    machine, default_payload = BOARDS[args.board]
+    payload = args.payload or str(ROOT / "payload" / default_payload)
+
     if not Path(args.qemu).is_file():
         sys.stderr.write(f"QEMU not found: {args.qemu}\n")
         return 2
-    if not Path(args.payload).is_file():
-        sys.stderr.write(f"payload not found: {args.payload}\n")
+    if not Path(payload).is_file():
+        sys.stderr.write(f"payload not found: {payload}\n")
         return 2
 
     cmd = [
         args.qemu,
-        "-M", "apple-aic-test",
+        "-M", machine,
         "-m", "128M",
         "-nographic",
-        "-device", f"loader,file={args.payload},cpu-num=0",
+        "-device", f"loader,file={payload},cpu-num=0",
     ]
 
     if args.trace_file:

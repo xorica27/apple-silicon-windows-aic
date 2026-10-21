@@ -1,0 +1,19 @@
+# M0 AIC v2 trace sample (filtered)
+# Full trace: m0/trace/aic-v2-trace.log (ignored by git)
+# The timer is delivered as FIQ, so it does not appear in the AIC trace.
+
+# AIC v2, M1 Pro layout
+apple_aic_read offset=0xc size=4 value=0x1000
+
+# UART IRQ 1097: enable bit at 0x6600 + (1097/32)*4 = 0x6688, bit 9
+apple_aic_write offset=0x6688 size=4 value=0x200
+apple_aic_enable irq=1097
+apple_aic_raise irq=1097
+apple_aic_eoi irq=1097 remaining=0
+apple_aic_read offset=0xc000 size=4 value=0x10449
+apple_aic_eoi irq=0 remaining=0
+apple_aic_read offset=0xc000 size=4 value=0x0
+
+# Disable
+apple_aic_write offset=0x6488 size=4 value=0x200
+apple_aic_disable irq=1097

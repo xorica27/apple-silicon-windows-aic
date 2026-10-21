@@ -69,24 +69,26 @@ The project has two success thresholds:
 - **Model success (M5):** patched Windows reaches a functional desktop on the
   QEMU AIC machine.
 - **Hardware success (M6):** the same image reaches a functional desktop on a
-  real M1, and the absence of a persistent EL2 layer is verified.
+  real Apple Silicon Mac (M1 Pro primary), and the absence of a persistent EL2
+  layer is verified.
 
 A boot to a setup screen or a kernel handoff is not success. The threshold is a
 desktop with SMP, timer, storage, display, and input.
 
 ### 1.4 Targets
 
-- **Primary hardware:** M1 Mac mini (`j274`, T8103, AIC v1). It is the cheapest
-  sacrificial target and the configuration used by NWOAS.
-- **Secondary hardware:** M1 MacBook Air (`j313`, T8103), for built-in display,
-  keyboard, and trackpad experiments.
+- **Primary hardware (available test machine):** `MacBookPro18,1`, Apple M1 Pro
+  (t600x, AIC v2), 10-core, 16 GB. This is the machine used for live inspection
+  and the hardware-payload target.
+- **Secondary hardware:** M1 Mac mini (`j274`, T8103, AIC v1) and M1 MacBook Air
+  (`j313`, T8103, AIC v1), if available. They cover the AIC v1 path.
 - **Windows baseline:** Windows 11 ARM64 24H2 (build 26100). 25H2 is a secondary
   target. The patch is build-specific; every experiment records the build number.
 - **Model:** the `apple_aic` device model in the pinned `jprx/qemu-sptm`
-  checkout.
+  checkout, with v1 and v2 test machines.
 
-M2+ uses AIC v2/v3 and is a separate support matrix; it is not part of the
-initial success threshold.
+AIC support matrix: v1 (T8103) and v2 (t600x). M2+ AIC variants are a separate
+support matrix; they are not part of the initial success threshold.
 
 ### 1.5 Non-goals
 
@@ -299,7 +301,7 @@ bare-metal AIC payload
   -> Linux interrupt/storage stress
   -> stock Windows (reproduce the GICD freeze)
   -> patched Windows (timer, one device IRQ, IPIs, storage, desktop)
-  -> real M1 hardware + no-EL2 verification
+  -> real Apple Silicon hardware (M1 Pro primary) + no-EL2 verification
 ```
 
 Each rung isolates one class of failure. Do not debug SMP before the timer
@@ -333,7 +335,7 @@ required," not as a bare-metal success.
 | M3 | Linux validation | 4 CPUs online; timer, IPIs, virtio-blk, and stress pass without lost IRQs |
 | M4 | Stock Windows | Reproducible `ntoskrnl` freeze; full trace captured |
 | M5 | Patched Windows on model | Functional desktop on the AIC model, with no EL2 shim |
-| M6 | Hardware validation | Functional desktop on a sacrificial M1; no-EL2 protocol passes |
+| M6 | Hardware validation | Functional desktop on a sacrificial Apple Silicon Mac (M1 Pro primary); no-EL2 protocol passes |
 
 Detailed dependencies and decision points are in the [roadmap](roadmap.md).
 
@@ -362,7 +364,7 @@ Detailed dependencies and decision points are in the [roadmap](roadmap.md).
 **Stretch result:**
 
 - a patched Windows functional desktop on the QEMU AIC model;
-- the same desktop on a real M1;
+- the same desktop on a real Apple Silicon Mac (M1 Pro primary);
 - a no-EL2 verification report and a model/hardware parity report.
 
 This separation keeps the research publishable even if the ultimate boot fails.
@@ -449,3 +451,5 @@ proprietary software. Practical boundaries:
   <https://learn.microsoft.com/en-us/windows-hardware/drivers/bringup/uefi-requirements-that-apply-to-all-windows-platforms>
 - Windows ARM64 interrupt internals:
   <https://connormcgarr.github.io/windows-arm64-interrupts/>
+- Live M1 Pro hardware inspection (AIC v2, UART IRQ 1097, FIQ timer):
+  [notes/2026-10-21-m1-pro-live-hardware.md](../notes/2026-10-21-m1-pro-live-hardware.md)

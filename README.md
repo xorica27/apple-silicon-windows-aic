@@ -41,9 +41,9 @@ GPU drivers are the larger work behind it.
 
 ## Primary targets
 
-- **Hardware:** M1 Mac mini (`j274`, T8103, AIC v1) as the primary bring-up
-  target; M1 MacBook Air (`j313`, T8103) as the secondary target for built-in
-  display/keyboard experiments. M2+ uses AIC v2/v3 and is a separate support
+- **Hardware:** `MacBookPro18,1` (Apple M1 Pro, t600x, AIC v2) as the available
+  primary test machine; M1 Mac mini (`j274`, T8103, AIC v1) and M1 MacBook Air
+  (`j313`, AIC v1) as secondary targets. M2+ AIC variants are a separate support
   matrix.
 - **Windows:** Windows 11 ARM64 24H2 (build 26100) as the baseline; 25H2 as a
   secondary target. The patch is build-specific; every experiment records the
@@ -65,9 +65,9 @@ The stretch result is a patched Windows desktop on the model, then on hardware.
 ## Status
 
 Concept and upstream survey (October 2026). There is no Windows patch here.
-Milestone 0 — the QEMU AIC observability bench, qtest, and bare-metal payload —
-is complete on the model; the real-M1 run is pending. See
-[Milestone 0](m0/README.md).
+Milestone 0 — the QEMU AIC observability bench, qtest, and bare-metal payloads —
+is complete on the model for AIC v1 and v2; the real-hardware run (M1 Pro) is
+pending. See [Milestone 0](m0/README.md).
 
 ## Documents
 
@@ -77,6 +77,7 @@ is complete on the model; the real-M1 run is pending. See
 - [Roadmap](docs/roadmap.md)
 - [Milestone 0 bench](m0/README.md)
 - [Upstream source inspection, 2026-10-21](notes/2026-10-21-upstream-inspection.md)
+- [M1 Pro live hardware inspection, 2026-10-21](notes/2026-10-21-m1-pro-live-hardware.md)
 
 ## Repository layout
 

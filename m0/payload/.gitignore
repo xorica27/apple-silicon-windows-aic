@@ -1,3 +1,8 @@
 payload.elf
 payload.bin
 payload.map
+payload-v1.elf
+payload-v2.elf
+payload-m1pro.elf
+payload-m1pro.bin
+payload*.map

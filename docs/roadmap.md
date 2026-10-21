@@ -5,10 +5,12 @@ Windows; the bare-metal AIC payload comes before both.
 
 ## Status (2026-10-21)
 
-M0 is complete on the QEMU bench: AIC trace events, the `apple-aic-test`
-machine, a 4/4 qtest, and a bare-metal payload that takes UART and timer IRQs
-through AIC and performs EOI. Real-M1 validation and IPI remain pending. See
-[`m0/README.md`](../m0/README.md).
+M0 is complete on the QEMU bench for AIC v1 and v2: AIC trace events, the
+`apple-aic-test` and `apple-aic-v2-test` machines, an 8/8 qtest, and bare-metal
+payloads that take UART IRQs through AIC and a timer via AIC (v1) or FIQ (v2).
+The M1 Pro hardware payload is cross-compiled; hardware execution and IPI remain
+pending. See [`m0/README.md`](../m0/README.md) and
+[`notes/2026-10-21-m1-pro-live-hardware.md`](../notes/2026-10-21-m1-pro-live-hardware.md).
 
 ## Goal and definition of done
 
@@ -21,10 +23,12 @@ display, and keyboard/mouse usable.
 
 **Targets:**
 
-- Primary hardware: M1 Mac mini (`j274`, T8103, AIC v1).
-- Secondary hardware: M1 MacBook Air (`j313`, T8103).
+- Primary hardware: `MacBookPro18,1` (Apple M1 Pro, t600x, AIC v2).
+- Secondary hardware: M1 Mac mini (`j274`, T8103, AIC v1) and M1 MacBook Air
+  (`j313`, AIC v1).
 - Windows baseline: Windows 11 ARM64 24H2 (build 26100); 25H2 secondary.
-- Model: `apple_aic` from the pinned `jprx/qemu-sptm` checkout.
+- Model: `apple_aic` from the pinned `jprx/qemu-sptm` checkout, with v1 and v2
+  test machines.
 
 **Not success:** reaching a setup screen, a kernel handoff, or a boot under an
 EL2 shim. The threshold is a desktop with SMP, timer, storage, display, and
@@ -54,8 +58,9 @@ Exit criteria:
 Dependencies: none.  
 Main risk: treating model behavior as hardware truth.
 
-**Status (2026-10-21):** QEMU portion complete (trace, qtest, payload PASS).
-Real-M1 run pending; IPI deferred to M1.
+**Status (2026-10-21):** QEMU portion complete for AIC v1 and v2 (trace, 8/8
+qtest, payloads PASS). M1 Pro hardware payload cross-compiled but not executed;
+IPI deferred to M1.
 
 ## M1 — Extend the AIC model
 
@@ -162,11 +167,12 @@ Main risk: the HAL has no clean seam; the patch becomes broad and fragile.
 
 ## M6 — Hardware validation
 
-**Goal:** verify the model against a real M1.
+**Goal:** verify the model against a real Apple Silicon Mac (M1 Pro primary).
 
 Tasks:
 
-- Use a sacrificial M1 Mac mini with `m1n1` serial and a second host.
+- Use a sacrificial Apple Silicon Mac (M1 Pro primary) with `m1n1` serial and a
+  second host.
 - Boot the same image on hardware.
 - Compare AIC traces, timer behavior, and interrupt latency.
 - Run the no-EL2 verification protocol on hardware.
