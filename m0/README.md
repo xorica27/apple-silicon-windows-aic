@@ -1,14 +1,11 @@
-# Milestone 0 — Observability and oracle
+# Milestone 0 — QEMU observability bench (concluded)
 
-Status: **QEMU bench complete for AIC v1 and v2; M1 Pro hardware payload
-cross-compiled; hardware execution pending.**
+Status: **Concluded 2026-10-21 on the QEMU bench for AIC v1 and v2.**
 
-M0 makes the AIC model measurable and gives the project a bare-metal oracle. On
-the QEMU side, trace events, two test machines (v1 and v2), an 8-test qtest, and
-bare-metal payloads all pass. The M1 Pro hardware payload is built and ready for
-an `m1n1` run, but has not been executed on hardware.
+M0 makes the AIC model measurable on QEMU and provides the bare-metal oracle
+payload. The hardware-execution half is split out as **M0b**; IPI is part of M1.
 
-## Results
+## M0 results
 
 | Check | Result |
 |---|---|
@@ -18,11 +15,10 @@ an `m1n1` run, but has not been executed on hardware.
 | qtest (`apple-aic-test`) | 8/8 PASS (4 v1 + 4 v2) |
 | Bare-metal payload, QEMU v1 | PASS |
 | Bare-metal payload, QEMU v2 | PASS |
-| M1 Pro (`t600x`) payload | builds; **not executed** |
 | AIC trace captured (v1 and v2) | PASS |
 | No-EL2 report format and validator | DEFINED |
 
-## What was added
+## What M0 added
 
 - AIC trace events: read, write, enable, disable, ack, raise, EOI, and IRQ
   request.
@@ -38,14 +34,14 @@ an `m1n1` run, but has not been executed on hardware.
   - `BOARD_QEMU_V1` — PL011, AIC v1, timer via AIC.
   - `BOARD_QEMU_V2` — PL011, AIC v2, UART IRQ 1097, timer via FIQ.
   - `BOARD_M1PRO` — Apple S5L UART, PMGR power-on, AIC v2, UART IRQ 1097,
-    timer via FIQ.
+    timer via FIQ (built in M0b).
 - FIQ vector and handler in `payload/start.S`.
 
 The QEMU changes are exported as
 [`patches/0001-m0-observability.patch`](../patches/0001-m0-observability.patch)
 and can be applied with `scripts/apply-m0-patches.sh` after fetching upstream.
 
-## Build and run
+## Build and run (M0)
 
 Fetch upstream and apply the patch:
 
@@ -55,12 +51,11 @@ Fetch upstream and apply the patch:
 ./m0/build_qemu.sh
 ```
 
-Build the payloads:
+Build the QEMU payloads:
 
 ```bash
 cd m0/payload
 make                    # payload-v1.elf, payload-v2.elf
-make payload-m1pro.elf  # hardware variant (not executed)
 ```
 
 Run the qtest (8 tests):
@@ -102,7 +97,14 @@ Capture the v2 trace:
 python3 run_payload.py --board v2 --trace-file trace/aic-v2-trace.log
 ```
 
-## M1 Pro hardware payload
+## Milestone 0b — M1 Pro hardware execution (open)
+
+Status: **Open. The payload is cross-compiled but has not been booted.**
+
+Goal: run the AIC v2 payload on the M1 Pro under `m1n1` and validate the hardware
+assumptions.
+
+### Hardware data
 
 The available test machine is `MacBookPro18,1` (Apple M1 Pro, `t600x`, AIC v2).
 Live inspection is recorded in
@@ -116,10 +118,36 @@ Key values used by `BOARD_M1PRO`:
 | Timer | `arm,armv8-timer` via **FIQ** |
 | PMGR | `pmgr_east` `0x28E580000`; `ps_sio` `0x180`, `ps_uart_p` `0x230`, `ps_uart0` `0x240` |
 
-Important caveats:
+### Tasks
+
+- Settle `m1n1` payload packaging and the load address (`payload-m1pro.elf`
+  currently links at `0x80000000`).
+- Tethered `m1n1` boot with a second host (preferred), or a persistent boot
+  object if no second host is available.
+- Validate Apple UART/PMGR initialization; adjust clock, pinmux, or the
+  dockchannel UART if needed.
+- Validate AIC v2 UART IRQ `1097` and the FIQ timer on hardware.
+- Capture EL2 state before and after handoff and record the no-EL2 evidence.
+
+### Exit criteria
+
+- Payload boots at EL1 under `m1n1` and prints over the Apple UART.
+- UART IRQ `1097` and the FIQ timer are observed, or the blockers are
+  documented.
+- EL2 state is recorded and the no-EL2 protocol result is recorded.
+- `m1n1` load address and packaging are documented.
+
+### Build the hardware payload
+
+```bash
+cd m0/payload
+make payload-m1pro.elf
+```
+
+### Caveats
 
 - macOS/XNU owns AIC v2 at EL1. The payload **cannot** run while macOS is
-  booted; it must run instead of macOS under `m1n1` (tethered boot preferred).
+  booted; it must run instead of macOS under `m1n1`.
 - UART0 is `status = "disabled"` in the Linux device tree. The Apple UART and
   PMGR initialization is best-effort and unverified; output may require clock,
   pinmux, or dockchannel-UART adjustments.
@@ -129,11 +157,11 @@ Important caveats:
 
 ## Notes and deviations
 
-- **IPI is deferred to M1.** Both QEMU machines are single-CPU and the AIC model
-  has no IPI registers. The payload prints a deferral line.
-- **The Darwin machine trace was not captured.** The `darwin` machine needs an
+- **IPI is part of M1.** The QEMU machines are single-CPU and the AIC model has
+  no IPI registers. The payload prints a deferral line.
+- **The Darwin-machine trace was substituted.** The `darwin` machine needs an
   IPSW firmware bundle; M0 captures traces from the AIC test machines instead.
-- **Hardware run is pending.** The M1 Pro payload builds but has not been booted.
+- **Hardware execution is M0b**, not part of the concluded M0.
 
 ## Files
 

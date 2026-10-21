@@ -295,13 +295,14 @@ legal decisions, not research steps.
 ### 6.6 Validation ladder
 
 ```text
-bare-metal AIC payload
+bare-metal AIC payload on QEMU v1/v2                     [M0]
+  -> bare-metal AIC payload on M1 Pro via m1n1           [M0b]
   -> Linux uniprocessor
   -> Linux SMP (timer, IPIs, affinity)
   -> Linux interrupt/storage stress
   -> stock Windows (reproduce the GICD freeze)
   -> patched Windows (timer, one device IRQ, IPIs, storage, desktop)
-  -> real Apple Silicon hardware (M1 Pro primary) + no-EL2 verification
+  -> Windows on real Apple Silicon hardware (M1 Pro primary) + no-EL2 verification
 ```
 
 Each rung isolates one class of failure. Do not debug SMP before the timer
@@ -329,15 +330,17 @@ required," not as a bare-metal success.
 
 | ID | Milestone | Exit criterion |
 |---|---|---|
-| M0 | Observability and oracle | AIC trace captured; bare-metal payload passes on model and hardware |
-| M1 | AIC model extensions | SMP/IPI/FIQ/target tests pass in QEMU |
+| M0 | QEMU observability bench | AIC v1/v2 traces captured; 8/8 qtest; payloads pass on QEMU v1/v2 |
+| M0b | M1 Pro hardware execution | Payload boots at EL1 under `m1n1`; UART/FIQ evidence captured |
+| M1 | AIC model extensions (SMP/IPI/FIQ) | SMP/IPI/FIQ/target tests pass in QEMU |
 | M2 | General-purpose machine | Linux boots to userspace with AIC and device tree |
 | M3 | Linux validation | 4 CPUs online; timer, IPIs, virtio-blk, and stress pass without lost IRQs |
 | M4 | Stock Windows | Reproducible `ntoskrnl` freeze; full trace captured |
 | M5 | Patched Windows on model | Functional desktop on the AIC model, with no EL2 shim |
 | M6 | Hardware validation | Functional desktop on a sacrificial Apple Silicon Mac (M1 Pro primary); no-EL2 protocol passes |
 
-Detailed dependencies and decision points are in the [roadmap](roadmap.md).
+M0 is concluded on the QEMU bench; M0b is open; IPI is part of M1. Detailed
+dependencies and decision points are in the [roadmap](roadmap.md).
 
 ## 8. Evaluation criteria
 
@@ -357,6 +360,8 @@ Detailed dependencies and decision points are in the [roadmap](roadmap.md).
 **Minimum publishable result:**
 
 - a documented, faithful AIC model and general-purpose AIC machine;
+- the QEMU v1/v2 observability bench and the M1 Pro hardware-payload result
+  (positive or blocked);
 - a reproducible Linux-on-AIC test bench with SMP/timer/IPI results;
 - a characterization of the Windows HAL's GIC assumptions and the minimal seam;
 - a positive or negative answer on hypervisor-free feasibility.

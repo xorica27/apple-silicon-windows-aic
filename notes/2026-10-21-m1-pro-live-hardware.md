@@ -119,7 +119,8 @@ UTRSTAT_TXBE BIT(1), UTRSTAT_RXD BIT(0)
    the hardware payload is best-effort and unverified; output on hardware may
    need adjustment (clock, pinmux, or the dockchannel UART).
 5. The hardware payload is cross-compiled but **not executed**. m1n1 payload
-   packaging/load address still needs to be settled.
+   packaging/load address still needs to be settled. This work is tracked as
+   **M0b**, separate from the concluded M0 QEMU bench.
 
 ## Commands used
 

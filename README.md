@@ -65,9 +65,9 @@ The stretch result is a patched Windows desktop on the model, then on hardware.
 ## Status
 
 Concept and upstream survey (October 2026). There is no Windows patch here.
-Milestone 0 — the QEMU AIC observability bench, qtest, and bare-metal payloads —
-is complete on the model for AIC v1 and v2; the real-hardware run (M1 Pro) is
-pending. See [Milestone 0](m0/README.md).
+Milestone 0 (QEMU AIC observability bench) is concluded for AIC v1 and v2.
+Milestone 0b (M1 Pro hardware execution) is open: the hardware payload is
+cross-compiled but has not been booted. See [Milestone 0 / 0b](m0/README.md).
 
 ## Documents
 
@@ -75,14 +75,14 @@ pending. See [Milestone 0](m0/README.md).
 - [Prior art](docs/prior-art.md)
 - [Upstream survey](docs/upstream-survey.md)
 - [Roadmap](docs/roadmap.md)
-- [Milestone 0 bench](m0/README.md)
+- [Milestone 0 / 0b bench](m0/README.md)
 - [Upstream source inspection, 2026-10-21](notes/2026-10-21-upstream-inspection.md)
 - [M1 Pro live hardware inspection, 2026-10-21](notes/2026-10-21-m1-pro-live-hardware.md)
 
 ## Repository layout
 
 ```text
-m0/         Milestone 0 bench: QEMU machine patch, qtest, payload, trace
+m0/         Milestone 0/0b bench: QEMU machine patch, qtest, payload, trace
 patches/    QEMU changes as patches
 docs/       research concept, prior art, upstream survey, roadmap
 notes/      dated lab and inspection notes

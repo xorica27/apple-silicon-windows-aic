@@ -5,11 +5,12 @@ Windows; the bare-metal AIC payload comes before both.
 
 ## Status (2026-10-21)
 
-M0 is complete on the QEMU bench for AIC v1 and v2: AIC trace events, the
-`apple-aic-test` and `apple-aic-v2-test` machines, an 8/8 qtest, and bare-metal
-payloads that take UART IRQs through AIC and a timer via AIC (v1) or FIQ (v2).
-The M1 Pro hardware payload is cross-compiled; hardware execution and IPI remain
-pending. See [`m0/README.md`](../m0/README.md) and
+M0 (QEMU observability bench) is concluded for AIC v1 and v2: AIC trace events,
+the `apple-aic-test` and `apple-aic-v2-test` machines, an 8/8 qtest, and
+bare-metal payloads that take UART IRQs through AIC and a timer via AIC (v1) or
+FIQ (v2). M0b (M1 Pro hardware execution) is open: the payload is cross-compiled
+but has not been booted. IPI is part of M1. See
+[`m0/README.md`](../m0/README.md) and
 [`notes/2026-10-21-m1-pro-live-hardware.md`](../notes/2026-10-21-m1-pro-live-hardware.md).
 
 ## Goal and definition of done
@@ -34,33 +35,63 @@ display, and keyboard/mouse usable.
 EL2 shim. The threshold is a desktop with SMP, timer, storage, display, and
 input, plus the no-EL2 verification protocol.
 
-## M0 — Observability and oracle
+## M0 — QEMU observability bench (concluded)
 
-**Goal:** make the existing model measurable and compare it with real hardware.
+**Goal:** make the AIC model measurable on QEMU and build the bare-metal oracle
+payload.
 
 Tasks:
 
 - Replace the `aic_log` no-op with QEMU trace events for read, write, raise, and
   EOI.
 - Add a qtest for the AIC register map.
-- Write a bare-metal AIC payload: enable a timer, enable a UART IRQ, perform
-  EOI, then send an IPI.
-- Run the payload on the QEMU model and on `m1n1` hardware.
-- Record the EL2 state before and after handoff for the baseline.
+- Write a bare-metal AIC payload: enable a UART IRQ, perform EOI, and exercise
+  the timer via AIC (v1) or FIQ (v2).
+- Run the payload on the QEMU v1 and v2 machines.
+- Capture v1 and v2 register traces.
 
 Exit criteria:
 
-- A register trace from the existing `darwin` machine.
-- The payload passes on both model and hardware, or the differences are
-  documented.
+- AIC v1 and v2 register traces captured.
+- qtest passes for v1 and v2 (8/8).
+- Payloads pass on the QEMU v1 and v2 machines.
 - The no-EL2 verification harness has a defined output format.
 
 Dependencies: none.  
 Main risk: treating model behavior as hardware truth.
 
-**Status (2026-10-21):** QEMU portion complete for AIC v1 and v2 (trace, 8/8
-qtest, payloads PASS). M1 Pro hardware payload cross-compiled but not executed;
-IPI deferred to M1.
+**Status (2026-10-21):** concluded on the QEMU bench. The Darwin-machine trace
+was substituted with the AIC test-machine traces; the Darwin machine requires an
+IPSW firmware bundle. Hardware execution is M0b; IPI is M1.
+
+## M0b — M1 Pro hardware execution (open)
+
+**Goal:** run the AIC v2 payload on the M1 Pro under `m1n1` and validate the
+hardware assumptions.
+
+Tasks:
+
+- Settle `m1n1` payload packaging and the load address (`payload-m1pro.elf`
+  currently links at `0x80000000`).
+- Tethered `m1n1` boot with a second host (preferred), or a persistent boot
+  object if no second host is available.
+- Validate Apple UART/PMGR initialization; adjust clock, pinmux, or the
+  dockchannel UART if needed.
+- Validate AIC v2 UART IRQ `1097` and the FIQ timer on hardware.
+- Capture EL2 state before and after handoff and record the no-EL2 evidence.
+
+Exit criteria:
+
+- Payload boots at EL1 under `m1n1` and prints over the Apple UART.
+- UART IRQ `1097` and the FIQ timer are observed, or the blockers are
+  documented.
+- EL2 state is recorded and the no-EL2 protocol result is recorded.
+- `m1n1` load address and packaging are documented.
+
+Dependencies: M0; second host; sacrificial M1 Pro; explicit approval to reboot.
+
+Main risk: UART0 is disabled in the device tree and PMGR/clock/pinmux are
+unverified; a boot-chain change can lose data if something goes wrong.
 
 ## M1 — Extend the AIC model
 
@@ -69,7 +100,7 @@ IPI deferred to M1.
 Tasks:
 
 - Add `num-cpus`; per-CPU IRQ and FIQ outputs; per-IRQ target CPU.
-- Add IPI set/clear handling.
+- Add IPI set/clear handling (deferred from M0).
 - Add mask set/clear, hardware-state, and info registers.
 - Derive the real interrupt count from the ADT/property instead of hard-coding
   `0x1000`.
@@ -81,7 +112,8 @@ Exit criteria:
 - Bare-metal SMP and IPI tests pass in QEMU.
 - The Linux AIC driver probes successfully on the model.
 
-Dependencies: M0.  
+Dependencies: M0 (M0b can run in parallel).
+
 Main risk: AIC semantics that Linux uses but the model omits.
 
 ## M2 — General-purpose machine
@@ -212,19 +244,20 @@ with the no-EL2 protocol passing.
 
 ## First patch scope
 
-The smallest useful change set is M0 plus the first half of M1:
+M0 is concluded. The next useful change set is the first half of M1:
 
-1. Trace events.
-2. `num-cpus` and per-CPU IRQ lines.
-3. IPI set/clear and target registers.
-4. A qtest and a bare-metal payload.
-5. A minimal `apple-aic-virt` machine that boots a Linux device tree.
+1. `num-cpus` and per-CPU IRQ lines.
+2. IPI set/clear and target registers.
+3. A qtest and a bare-metal SMP/IPI payload.
+4. A minimal `apple-aic-virt` machine that boots a Linux device tree.
 
 That is enough to produce a credible AIC model before investing in UEFI, ACPI,
 and the Windows intervention.
 
 ## Decision points
 
+- **After M0b:** did the payload boot on hardware and produce UART/FIQ evidence;
+  if not, what is blocked?
 - **After M3:** is the model faithful enough to justify Windows work?
 - **After M4:** is there a viable seam — adapter or patch — or does the
   intervention require broad changes?
