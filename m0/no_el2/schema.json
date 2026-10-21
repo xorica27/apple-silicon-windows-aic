@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/xorica27/apple-silicon-windows-aic/m0/no_el2/schema.json",
+  "title": "No persistent EL2 verification report",
+  "description": "Evidence that Windows runs without a persistent EL2 hypervisor after ExitBootServices. Null means not yet measured.",
+  "type": "object",
+  "required": ["status", "run", "handoff", "checks", "evidence"],
+  "additionalProperties": false,
+  "properties": {
+    "status": {
+      "enum": ["pending", "pass", "fail"]
+    },
+    "run": {
+      "type": "object",
+      "required": ["id", "date", "hardware", "windows_build", "bootloader"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "date": {"type": "string", "minLength": 1},
+        "hardware": {"type": "string", "minLength": 1},
+        "windows_build": {"type": "string", "minLength": 1},
+        "bootloader": {"type": "string", "minLength": 1}
+      }
+    },
+    "handoff": {
+      "type": "object",
+      "required": ["el_at_handoff", "el2_code_after_exit_boot_services"],
+      "additionalProperties": false,
+      "properties": {
+        "el_at_handoff": {
+          "type": ["integer", "null"],
+          "minimum": 0,
+          "maximum": 3
+        },
+        "el2_code_after_exit_boot_services": {
+          "type": ["boolean", "null"]
+        }
+      }
+    },
+    "checks": {
+      "type": "object",
+      "required": [
+        "el2_vector_active",
+        "stage2_enabled",
+        "vgic_present",
+        "psci_emulation",
+        "aic_direct",
+        "current_el_windows"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "el2_vector_active": {"type": ["boolean", "null"]},
+        "stage2_enabled": {"type": ["boolean", "null"]},
+        "vgic_present": {"type": ["boolean", "null"]},
+        "psci_emulation": {"type": ["boolean", "null"]},
+        "aic_direct": {"type": ["boolean", "null"]},
+        "current_el_windows": {
+          "type": ["integer", "null"],
+          "minimum": 0,
+          "maximum": 3
+        }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "required": ["trace", "registers", "driver_report"],
+      "additionalProperties": false,
+      "properties": {
+        "trace": {"type": "string"},
+        "registers": {"type": "string"},
+        "driver_report": {"type": "string"}
+      }
+    }
+  }
+}

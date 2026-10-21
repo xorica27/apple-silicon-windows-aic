@@ -6,6 +6,8 @@ upstream/
 
 # Local build and test artifacts
 build/
+__pycache__/
+*.pyc
 *.img
 *.qcow2
 *.iso

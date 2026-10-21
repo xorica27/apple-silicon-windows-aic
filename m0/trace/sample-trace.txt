@@ -1,0 +1,30 @@
+# M0 AIC trace sample (filtered)
+# Full trace: m0/trace/aic-trace.log (ignored by git)
+# Repeated apple_aic_raise lines during handler output are omitted.
+
+# UART path (IRQ 100)
+apple_aic_read offset=0x4 size=4 value=0x100
+apple_aic_write offset=0x418c size=4 value=0x10
+apple_aic_enable irq=100
+apple_aic_raise irq=100
+apple_aic_eoi irq=100 remaining=1
+apple_aic_read offset=0x2004 size=4 value=0x10064
+apple_aic_write offset=0x408c size=4 value=0x10
+apple_aic_ack irq=100
+apple_aic_eoi irq=0 remaining=0
+apple_aic_read offset=0x2004 size=4 value=0x0
+apple_aic_write offset=0x410c size=4 value=0x10
+apple_aic_disable irq=100
+
+# Timer path (IRQ 27)
+apple_aic_write offset=0x4180 size=4 value=0x8000000
+apple_aic_enable irq=27
+apple_aic_raise irq=27
+apple_aic_eoi irq=27 remaining=1
+apple_aic_read offset=0x2004 size=4 value=0x1001b
+apple_aic_write offset=0x4080 size=4 value=0x8000000
+apple_aic_ack irq=27
+apple_aic_eoi irq=0 remaining=0
+apple_aic_read offset=0x2004 size=4 value=0x0
+apple_aic_write offset=0x4100 size=4 value=0x8000000
+apple_aic_disable irq=27

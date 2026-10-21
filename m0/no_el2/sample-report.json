@@ -1,0 +1,27 @@
+{
+  "status": "pending",
+  "run": {
+    "id": "m0-qemu-sim",
+    "date": "2026-10-21",
+    "hardware": "qemu apple-aic-test",
+    "windows_build": "n/a",
+    "bootloader": "none"
+  },
+  "handoff": {
+    "el_at_handoff": null,
+    "el2_code_after_exit_boot_services": null
+  },
+  "checks": {
+    "el2_vector_active": null,
+    "stage2_enabled": null,
+    "vgic_present": null,
+    "psci_emulation": null,
+    "aic_direct": null,
+    "current_el_windows": null
+  },
+  "evidence": {
+    "trace": "m0/trace/aic-trace.log (QEMU)",
+    "registers": "not captured",
+    "driver_report": "not applicable (no Windows)"
+  }
+}

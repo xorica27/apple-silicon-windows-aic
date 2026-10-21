@@ -3,6 +3,13 @@
 The roadmap is ordered by dependency, not ambition. Linux-on-AIC comes before
 Windows; the bare-metal AIC payload comes before both.
 
+## Status (2026-10-21)
+
+M0 is complete on the QEMU bench: AIC trace events, the `apple-aic-test`
+machine, a 4/4 qtest, and a bare-metal payload that takes UART and timer IRQs
+through AIC and performs EOI. Real-M1 validation and IPI remain pending. See
+[`m0/README.md`](../m0/README.md).
+
 ## Goal and definition of done
 
 **Goal:** boot Windows 11 ARM64 (pinned build) to a functional desktop on one
@@ -46,6 +53,9 @@ Exit criteria:
 
 Dependencies: none.  
 Main risk: treating model behavior as hardware truth.
+
+**Status (2026-10-21):** QEMU portion complete (trace, qtest, payload PASS).
+Real-M1 run pending; IPI deferred to M1.
 
 ## M1 — Extend the AIC model
 
