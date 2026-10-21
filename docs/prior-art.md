@@ -1,8 +1,12 @@
 # Prior art
 
-A map of public work relevant to hypervisor-free Windows on Apple Silicon. Status
-is as of October 2026 and is based on public repositories and documentation.
-Self-reported claims are marked as such.
+A map of public work relevant to the AIC gate. Status is as of October 2026 and
+is based on public repositories and documentation. Self-reported claims are
+marked as such.
+
+None of these projects is a complete hypervisor-free desktop boot. They are
+relevant because they establish the baseline, the failure modes, and the
+components this project can reuse.
 
 ## Windows-on-Apple-Silicon projects
 
@@ -46,9 +50,12 @@ Self-reported claims are marked as such.
 
 ## What no public project proves
 
-- That Windows can boot with **no persistent EL2 layer**.
-- That the Windows HAL can be patched to drive AIC in a maintainable way.
+- That Windows can boot with **no persistent EL2 layer** and reach a functional
+  desktop.
+- That the Windows HAL can be patched, or a GIC-to-AIC adapter built, in a
+  maintainable way.
 - That a QEMU AIC model is faithful enough for Windows without hardware
   validation.
 - That ACPI parking protocol plus AIC is sufficient for SMP, timer, and power
   management together.
+- That "no persistent EL2" can be verified rather than merely asserted.

@@ -1,28 +1,70 @@
-# Hypervisor-Free Windows on Apple Silicon
+# Bare-Metal Windows 11 on Apple Silicon: The AIC Gate
 
 **Research concept — not a product, not an installer.**
 
-Can Windows 11 ARM64 boot on an Apple Silicon Mac with no EL2 hypervisor shim?
-This repository investigates the narrow technical gate that stands in the way:
-Windows' HAL assumes an ARM GIC/GICD, while Apple Silicon exposes a proprietary
-AIC. Everything else — storage, display, GPU, power — is a driver problem. This
-is the HAL problem.
+## Goal
+
+Boot Windows 11 ARM64 (pinned build) to a **functional desktop** on one pinned
+Apple Silicon configuration, starting from a prepared image, with **no
+persistent EL2 hypervisor after handoff**.
+
+"Functional desktop" means: all CPU cores online, timer and IPIs working,
+storage, display, and keyboard/mouse usable. Installer/OOBE, GPU acceleration,
+and production support are out of scope.
+
+## What "native" means here
+
+"Native" is overloaded. This project uses a three-level distinction:
+
+| Mode | What runs beneath Windows | In scope? |
+|---|---|---|
+| **VM** (Parallels, UTM, VMware) | macOS + a hypervisor | No |
+| **Bare metal with EL2 shim** | `m1n1` at EL2 presenting a virtual GIC/PSCI | Baseline, not the goal |
+| **Hypervisor-free bare metal** | Firmware/bootloader only; hands off at EL1 | **Goal** |
+
+A bootloader and firmware may still run before Windows. What must be absent is a
+**persistent hypervisor at EL2** after handoff: no EL2 code, no stage-2
+translation, no virtual GIC, no PSCI emulation. "Native" here does **not** mean
+"supported, licensed, or endorsed by Apple or Microsoft."
+
+## The gate
+
+Windows' ARM64 HAL initializes the root interrupt controller before any normal
+driver can load, and expects a GIC Distributor in the ACPI MADT. Apple Silicon
+exposes the proprietary AIC. The historical HAL-extension route for interrupt
+controllers was removed before Windows 8 RTM. Current community projects boot
+Windows only by running an EL2 hypervisor that presents a virtual GIC and PSCI.
+
+This repository studies whether that layer can be removed — and if not, exactly
+what is missing. The AIC is the **gate**; storage, display, input, power, and
+GPU drivers are the larger work behind it.
+
+## Primary targets
+
+- **Hardware:** M1 Mac mini (`j274`, T8103, AIC v1) as the primary bring-up
+  target; M1 MacBook Air (`j313`, T8103) as the secondary target for built-in
+  display/keyboard experiments. M2+ uses AIC v2/v3 and is a separate support
+  matrix.
+- **Windows:** Windows 11 ARM64 24H2 (build 26100) as the baseline; 25H2 as a
+  secondary target. The patch is build-specific; every experiment records the
+  build number.
+- **Model:** the `apple_aic` device model in the pinned
+  `jprx/qemu-sptm` checkout.
+
+## Minimum publishable result
+
+Even if Windows never reaches a desktop, the project can publish:
+
+- a faithful, documented AIC model and a general-purpose AIC machine;
+- a reproducible Linux-on-AIC test bench;
+- a characterization of the Windows HAL's GIC assumptions and the minimal seam;
+- a positive or negative answer on hypervisor-free feasibility.
+
+The stretch result is a patched Windows desktop on the model, then on hardware.
 
 ## Status
 
 Concept and upstream survey (October 2026). There is no Windows patch here.
-Current community projects (NTASP, NWOAS, `paulsmir/windows-on-m1`,
-WatariBoot) boot Windows under an EL2 vGIC shim. This project asks whether that
-layer can be removed, and what it would take.
-
-## Key finding
-
-The blocker is architectural, not "just a driver." Microsoft's ARM64 HAL
-initializes the root interrupt controller before any normal driver can load, and
-expects a GIC Distributor in the MADT. The historical HAL-extension route for
-interrupt controllers was removed before Windows 8 RTM. Without Microsoft
-support or a patched HAL, the only way to give Windows a GIC is to emulate one —
-which is the EL2 shim.
 
 ## Documents
 

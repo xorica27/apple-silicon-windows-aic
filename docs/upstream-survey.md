@@ -1,7 +1,9 @@
 # Upstream survey: the existing QEMU AIC model
 
 This document records what the pinned upstream checkout provides, what can be
-reused, and what must be built. It complements the dated
+reused, and what must be built. It covers the AIC model component; the broader
+goal — a functional Windows desktop — also needs storage, display, input, power,
+and the Windows intervention. It complements the dated
 [source inspection](../notes/2026-10-21-upstream-inspection.md).
 
 ## Pinned sources

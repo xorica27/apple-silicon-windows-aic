@@ -1,19 +1,22 @@
 cff-version: 1.2.0
 message: "If you use this work, please cite it using the metadata below."
-title: "Hypervisor-Free Windows on Apple Silicon: The AIC Problem"
+title: "Bare-Metal Windows 11 on Apple Silicon: The AIC Gate"
 abstract: >-
-  A research concept and reproducibility plan for investigating whether Windows
-  11 ARM64 can boot on Apple Silicon without an EL2 hypervisor shim by teaching
-  the Windows HAL to drive Apple's AIC interrupt controller. Includes a prior-art
-  survey, an upstream code survey, a staged roadmap, and a QEMU-based validation
-  strategy.
+  A research concept and reproducibility plan for booting Windows 11 ARM64 to a
+  functional desktop on Apple Silicon with no persistent EL2 hypervisor. The
+  work isolates the decisive boot gate: Windows' HAL assumes an ARM GIC/GICD
+  while Apple Silicon exposes the proprietary AIC, and no supported third-party
+  interrupt-controller extension point exists. Includes a prior-art survey, an
+  upstream code survey, a staged roadmap, pinned hardware and Windows targets,
+  and a QEMU-based validation strategy.
 authors:
   - name: "xorica27"
 date-released: "2026-10-21"
 license: MIT
 keywords:
   - Apple Silicon
-  - Windows on ARM
+  - Windows 11 ARM64
+  - bare metal
   - AIC
   - interrupt controller
   - QEMU
